@@ -905,7 +905,7 @@ function logout() {
   document.getElementById('login-username').value = '';
   document.getElementById('login-password').value = '';
   switchTab('dashboard');
-  if (currentUser === null) document.getElementById('admin-tab').style.display = 'none';
+  document.getElementById('admin-tab').style.display = 'none';
 }
 
 /* ─── THEME ─── */
