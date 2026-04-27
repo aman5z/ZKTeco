@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>طلب رقم الدور | Queue Token</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --border: #2a2d3a;
+    --accent: #4f8ef7;
+    --accent2: #7c6ff7;
+    --success: #22d3a0;
+    --warn: #f7c94f;
+    --text: #e8eaf0;
+    --muted: #6b7280;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { min-height: 100vh; background: var(--bg); font-family: 'IBM Plex Sans Arabic', sans-serif; color: var(--text); }
+
+  body {
+    background: var(--bg);
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(79,142,247,0.12) 0%, transparent 70%),
+      radial-gradient(ellipse 40% 30% at 90% 80%, rgba(124,111,247,0.08) 0%, transparent 60%);
+  }
+
+  .wrap { max-width: 480px; margin: 0 auto; padding: 24px 16px 40px; }
+
+  /* Header */
+  .header { text-align: center; padding: 28px 0 24px; }
+  .logo-box {
+    width: 72px; height: 72px; margin: 0 auto 16px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 20px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 32px;
+    box-shadow: 0 8px 32px rgba(79,142,247,0.3);
+  }
+  .logo-box img { width: 100%; height: 100%; object-fit: contain; border-radius: 20px; display: none; }
+  .logo-box img.loaded { display: block; }
+  .school-name { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
+  .school-sub { font-size: 13px; color: var(--muted); margin-top: 4px; direction: ltr; font-family: 'IBM Plex Mono', monospace; }
+
+  /* Card */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px 20px;
+    margin-bottom: 16px;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+  }
+
+  .section-label {
+    font-size: 11px; font-weight: 600; color: var(--accent);
+    text-transform: uppercase; letter-spacing: 1.5px;
+    margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
+  }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  /* Form */
+  .field { margin-bottom: 16px; }
+  .field label {
+    display: block; font-size: 13px; font-weight: 500; color: var(--text);
+    margin-bottom: 7px;
+  }
+  .field label span { color: var(--muted); font-size: 12px; font-weight: 400; margin-right: 4px; }
+  .field input, .field select, .field textarea {
+    width: 100%; padding: 12px 14px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text); font-size: 15px;
+    font-family: 'IBM Plex Sans Arabic', sans-serif;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    outline: none;
+    -webkit-appearance: none;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(79,142,247,0.15);
+  }
+  .field select { cursor: pointer; }
+  .field select option { background: #1a1d27; }
+  .field textarea { resize: none; height: 80px; }
+
+  /* Lookup result */
+  .lookup-result {
+    margin-top: 8px; padding: 10px 14px;
+    background: rgba(34,211,160,0.08);
+    border: 1px solid rgba(34,211,160,0.25);
+    border-radius: 8px;
+    font-size: 13px; color: var(--success);
+    display: none;
+  }
+  .lookup-result.show { display: flex; align-items: center; gap: 8px; }
+
+  /* Reason chips */
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+  .chip {
+    padding: 7px 14px; border-radius: 20px;
+    border: 1px solid var(--border);
+    font-size: 13px; color: var(--muted);
+    cursor: pointer; transition: all 0.15s;
+    background: transparent;
+    font-family: 'IBM Plex Sans Arabic', sans-serif;
+  }
+  .chip:hover { border-color: var(--accent); color: var(--accent); }
+  .chip.active { border-color: var(--accent); color: var(--accent); background: rgba(79,142,247,0.1); }
+
+  /* OR divider */
+  .or { text-align: center; color: var(--muted); font-size: 12px; margin: 10px 0; position: relative; }
+  .or::before, .or::after { content: ''; position: absolute; top: 50%; width: 40%; height: 1px; background: var(--border); }
+  .or::before { left: 0; } .or::after { right: 0; }
+
+  /* Submit */
+  .btn-submit {
+    width: 100%; padding: 16px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none; border-radius: 12px;
+    color: #fff; font-size: 17px; font-weight: 700;
+    font-family: 'IBM Plex Sans Arabic', sans-serif;
+    cursor: pointer; transition: opacity 0.2s, transform 0.1s;
+    box-shadow: 0 4px 24px rgba(79,142,247,0.35);
+    margin-top: 8px;
+  }
+  .btn-submit:hover { opacity: 0.92; }
+  .btn-submit:active { transform: scale(0.98); }
+  .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* Token result */
+  .token-result {
+    display: none; text-align: center; padding: 32px 20px;
+  }
+  .token-result.show { display: block !important; }
+  .token-big {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 56px; font-weight: 600;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1; margin-bottom: 8px;
+    animation: pop 0.4s cubic-bezier(0.175,0.885,0.32,1.275);
+  }
+  @keyframes pop {
+    from { transform: scale(0.6); opacity: 0; }
+    to   { transform: scale(1);   opacity: 1; }
+  }
+  .token-dept { font-size: 16px; color: var(--muted); margin-bottom: 24px; }
+  .token-pos {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 12px 20px;
+    background: rgba(247,201,79,0.08);
+    border: 1px solid rgba(247,201,79,0.25);
+    border-radius: 10px;
+    color: var(--warn); font-size: 14px; font-weight: 500;
+  }
+  .child-confirm {
+    margin: 16px 0;
+    padding: 12px 16px;
+    background: rgba(34,211,160,0.08);
+    border: 1px solid rgba(34,211,160,0.2);
+    border-radius: 10px;
+    color: var(--success); font-size: 14px;
+  }
+  .new-token-btn {
+    margin-top: 24px; padding: 12px 24px;
+    background: transparent; border: 1px solid var(--border);
+    border-radius: 10px; color: var(--muted);
+    font-size: 14px; cursor: pointer;
+    font-family: 'IBM Plex Sans Arabic', sans-serif;
+    transition: border-color 0.2s, color 0.2s;
+  }
+  .new-token-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Required star */
+  .req { color: #f87171; }
+
+  /* Error */
+  .err { color: #f87171; font-size: 12px; margin-top: 6px; display: none; }
+  .err.show { display: block; }
+
+  /* Loading spinner */
+  .spinner {
+    width: 20px; height: 20px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: inline-block; vertical-align: middle; margin-left: 8px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .bilingual { display: flex; justify-content: space-between; align-items: baseline; }
+  .en { direction: ltr; font-size: 11px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="header">
+    <div class="logo-box">
+      <img id="schoolLogo" src="YOUR_LOGO_URL_HERE" alt="Logo" onload="this.classList.add('loaded')">
+      🏫
+    </div>
+    <div class="school-name">YOUR SCHOOL NAME</div>
+    <div class="school-sub">RECEPTION · QUEUE SYSTEM</div>
+  </div>
+
+  <!-- FORM -->
+  <div id="formSection">
+    <div class="card">
+      <div class="section-label">معلومات الزائر <span class="en">Visitor Info</span></div>
+
+      <div class="field">
+        <label class="bilingual">
+          <span>رقم القيد / الهاتف <span class="req">*</span></span>
+          <span class="en">Admission No. / Phone</span>
+        </label>
+        <input type="text" id="admNo" inputmode="numeric"
+          placeholder="أدخل رقم القيد أو رقم الهاتف"
+          oninput="onAdmInput(this.value)">
+        <div class="lookup-result" id="lookupResult">
+          <span>✓</span><span id="lookupName"></span>
+        </div>
+        <div class="err" id="admErr">هذا الحقل مطلوب — This field is required</div>
+      </div>
+
+      <div class="field">
+        <label class="bilingual">
+          <span>اسم ولي الأمر <span class="req">*</span></span>
+          <span class="en">Parent Name</span>
+        </label>
+        <input type="text" id="parentName" placeholder="الاسم الكامل — Full name">
+        <div class="err" id="nameErr">هذا الحقل مطلوب — This field is required</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-label">الجهة المطلوبة <span class="en">Department</span></div>
+
+      <div class="field">
+        <label class="bilingual">
+          <span>اختر الجهة <span class="req">*</span></span>
+          <span class="en">Select Department</span>
+        </label>
+        <select id="dept" onchange="onDeptChange(this.value)">
+          <option value="">-- اختر / Select --</option>
+          <option value="REG">📋 Registrar — المسجل</option>
+          <option value="TRP">🚌 Transport — النقل</option>
+          <option value="TC">📄 TC Incharge — مسؤول شهادات النقل</option>
+          <option value="AD">👤 Asst Director — المدير المساعد</option>
+          <option value="FIN">💰 Finance — الشؤون المالية</option>
+        </select>
+        <div class="err" id="deptErr">اختر الجهة المطلوبة — Please select a department</div>
+      </div>
+    </div>
+
+    <div class="card" id="reasonCard" style="display:none">
+      <div class="section-label">سبب الزيارة <span class="en">Reason (optional)</span></div>
+
+      <div class="chips" id="reasonChips"></div>
+      <div class="or">أو / or</div>
+      <div class="field" style="margin-bottom:0">
+        <textarea id="reasonText" placeholder="اكتب السبب هنا... / Type your reason..."></textarea>
+      </div>
+    </div>
+
+    <button class="btn-submit" id="submitBtn" onclick="submitToken()">
+      احصل على رقم الدور &nbsp;·&nbsp; Get Token
+    </button>
+  </div>
+
+  <!-- TOKEN RESULT -->
+  <div class="token-result" id="tokenResult">
+    <div class="card">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:16px;">رقم دورك / Your Token</div>
+      <div class="token-big" id="tokenNum">R-01</div>
+      <div class="token-dept" id="tokenDept"></div>
+      <div class="child-confirm" id="childConfirm" style="display:none"></div>
+      <div class="token-pos" id="tokenPos">
+        <span>⏳</span>
+        <span id="posText"></span>
+      </div>
+      <div style="margin-top:20px;font-size:12px;color:var(--muted);line-height:1.8;">
+        يُرجى الانتظار في المنطقة المخصصة<br>
+        <span style="direction:ltr;display:inline-block;">Please wait in the designated area</span>
+      </div>
+    </div>
+    <button class="new-token-btn" onclick="resetForm()">🔄 طلب جديد / New Token</button>
+  </div>
+
+</div>
+
+<script>
+  // ── CONFIG ──
+  const GAS_URL = 'https://script.google.com/macros/s/AKfycbyxhqVi3BPh_ksWRJ5n9TWLGBK8HbEhxqqwqV4Bfft7VJJlGxRWI9PPS4Zhw_aKN1TOQQ/exec';
+
+  const DEPT_REASONS = {
+    REG: ['Admission enquiry / استفسار قبول','TC request / طلب TC','Document / مستند','Fee query / استفسار رسوم'],
+    TRP: ['Route query / استفسار مسار','Bus pass / تصريح باص','Timing change / تغيير مواعيد','Other / أخرى'],
+    TC:  ['TC request / طلب TC','Document / مستند','Other / أخرى'],
+    AD:  ['Complaint / شكوى','Meeting / اجتماع','Other / أخرى'],
+    FIN: ['Fee query / استفسار رسوم','Refund / استرداد','Other / أخرى'],
+  };
+
+  let selectedReason = '';
+
+  function onAdmInput(val) {
+    document.getElementById('lookupResult').classList.remove('show');
+  }
+
+  function onDeptChange(dept) {
+    const card  = document.getElementById('reasonCard');
+    const chips = document.getElementById('reasonChips');
+    if (!dept) { card.style.display = 'none'; return; }
+    card.style.display = 'block';
+    chips.innerHTML = '';
+    selectedReason = '';
+    (DEPT_REASONS[dept] || []).forEach(r => {
+      const btn = document.createElement('button');
+      btn.className   = 'chip';
+      btn.textContent = r;
+      btn.onclick = () => {
+        document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+        btn.classList.add('active');
+        selectedReason = r;
+        document.getElementById('reasonText').value = '';
+      };
+      chips.appendChild(btn);
+    });
+  }
+
+  function validate() {
+    const admNo      = document.getElementById('admNo').value.trim();
+    const parentName = document.getElementById('parentName').value.trim();
+    const dept       = document.getElementById('dept').value;
+    document.getElementById('admErr').classList.toggle('show',  !admNo);
+    document.getElementById('nameErr').classList.toggle('show', !parentName);
+    document.getElementById('deptErr').classList.toggle('show', !dept);
+    return !!(admNo && parentName && dept);
+  }
+
+  // ── MAIN SUBMIT ──
+  // Uses no-cors fetch POST → GAS writes the row and returns token in response.
+  // no-cors means we can't read the response body, so we POST then poll getQueue
+  // via a second POST (not GET) which avoids the redirect CORS issue entirely.
+  async function submitToken() {
+    if (!validate()) return;
+
+    const btn        = document.getElementById('submitBtn');
+    btn.disabled     = true;
+    btn.innerHTML    = 'جاري المعالجة... <span class="spinner"></span>';
+
+    const admNo      = document.getElementById('admNo').value.trim();
+    const parentName = document.getElementById('parentName').value.trim();
+    const dept       = document.getElementById('dept').value;
+    const reason     = selectedReason || document.getElementById('reasonText').value.trim();
+
+    // ── Step 1: Issue token via POST (mode:cors — GAS supports it) ──
+    let token    = null;
+    let position = 1;
+
+    try {
+      const res  = await fetch(GAS_URL, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body:    new URLSearchParams({ action:'issueToken', admNo, parentName, dept, reason }),
+        redirect: 'follow'
+      });
+      const data = await res.json();
+      if (data && data.token) {
+        token = data.token;
+      }
+    } catch(err) {
+      console.warn('Direct POST failed, falling back to poll:', err);
+    }
+
+    // ── Step 2: If direct POST didn't return token, poll getQueue via POST ──
+    if (!token) {
+      const now = Date.now();
+      for (let attempt = 0; attempt < 20; attempt++) {
+        await sleep(1000);
+        try {
+          const res  = await fetch(GAS_URL, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body:    new URLSearchParams({ action:'getQueue', dept }),
+            redirect: 'follow'
+          });
+          const rows = await res.json();
+          if (Array.isArray(rows)) {
+            const today = new Date().toISOString().slice(0, 10);
+            const myRow = rows.find(r => {
+              const issued = r[8] ? new Date(r[8]).getTime() : 0;
+              return r[1] === dept
+                && r[3] === parentName
+                && (Date.now() - issued) < 60000
+                && String(r[8]).startsWith(today);
+            });
+            if (myRow) { token = myRow[0]; break; }
+          }
+        } catch(err) { /* keep polling */ }
+      }
+    }
+
+    if (!token) {
+      alert('حدث خطأ في الاتصال، يُرجى المحاولة مجدداً\nCould not get token — please try again.');
+      btn.disabled  = false;
+      btn.innerHTML = 'احصل على رقم الدور &nbsp;·&nbsp; Get Token';
+      return;
+    }
+
+    // ── Step 3: Get queue position via POST ──
+    try {
+      const res  = await fetch(GAS_URL, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body:    new URLSearchParams({ action:'getQueue', dept }),
+        redirect: 'follow'
+      });
+      const rows = await res.json();
+      if (Array.isArray(rows)) {
+        const today   = new Date().toISOString().slice(0, 10);
+        const waiting = rows.filter(r =>
+          (r[7]==='WAITING'||r[7]==='PRIORITY') && String(r[8]).startsWith(today)
+        );
+        const myIdx = waiting.findIndex(r => r[0] === token);
+        position    = myIdx >= 0 ? myIdx + 1 : 1;
+      }
+    } catch(err) {}
+
+    // ── Step 4: Show result ──
+    document.getElementById('tokenNum').textContent  = token;
+    document.getElementById('tokenDept').textContent =
+      document.getElementById('dept').options[document.getElementById('dept').selectedIndex].text;
+    document.getElementById('childConfirm').style.display = 'none';
+    document.getElementById('posText').textContent = position <= 1
+      ? 'أنت التالي! / You\'re next!'
+      : (position - 1) + ' شخص أمامك / ' + (position - 1) + ' ahead of you';
+    document.getElementById('formSection').style.display = 'none';
+    document.getElementById('tokenResult').style.display = 'block';
+  }
+
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  function resetForm() {
+    document.getElementById('admNo').value      = '';
+    document.getElementById('parentName').value = '';
+    document.getElementById('dept').value       = '';
+    document.getElementById('reasonText').value = '';
+    document.getElementById('reasonCard').style.display   = 'none';
+    document.getElementById('lookupResult').classList.remove('show');
+    document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    selectedReason = '';
+    document.getElementById('submitBtn').disabled  = false;
+    document.getElementById('submitBtn').innerHTML = 'احصل على رقم الدور &nbsp;·&nbsp; Get Token';
+    document.getElementById('tokenResult').style.display  = 'none';
+    document.getElementById('formSection').style.display  = 'block';
+    ['admErr','nameErr','deptErr'].forEach(id =>
+      document.getElementById(id).classList.remove('show')
+    );
+  }
+</script>
+</body>
+</html>

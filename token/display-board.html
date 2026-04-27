@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Queue Display Board</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #05080f;
+    --surface: #0d1220;
+    --border: #1a2035;
+    --accent: #3b82f6;
+    --accent2: #6366f1;
+    --success: #10b981;
+    --warn: #f59e0b;
+    --text: #f1f5f9;
+    --muted: #64748b;
+    --green: #22c55e;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%; overflow: hidden;
+    background: var(--bg); color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  body {
+    background-image:
+      radial-gradient(ellipse 60% 40% at 20% 50%, rgba(59,130,246,0.07) 0%, transparent 60%),
+      radial-gradient(ellipse 40% 60% at 80% 20%, rgba(99,102,241,0.07) 0%, transparent 60%);
+  }
+
+  .board {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    height: 100vh;
+    padding: 0;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    background: linear-gradient(135deg, #0f1a3d, #162050);
+    border-bottom: 1px solid var(--border);
+    padding: 18px 40px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .header-left { display: flex; align-items: center; gap: 18px; }
+  .logo-box {
+    width: 52px; height: 52px; border-radius: 12px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px;
+    box-shadow: 0 4px 16px rgba(59,130,246,0.35);
+    flex-shrink: 0;
+  }
+  .school-block .name { font-size: 22px; font-weight: 700; color: var(--text); }
+  .school-block .sub { font-size: 13px; color: var(--muted); font-family: 'DM Mono', monospace; margin-top: 2px; }
+  .header-center { text-align: center; }
+  .board-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px; letter-spacing: 3px; color: var(--accent);
+  }
+  .board-sub { font-size: 12px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+  .header-right { text-align: right; }
+  .clock { font-family: 'DM Mono', monospace; font-size: 28px; font-weight: 500; color: var(--text); }
+  .date-str { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  /* ── MAIN GRID ── */
+  .content {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    overflow: hidden;
+  }
+
+  /* LEFT - Now Serving */
+  .now-serving {
+    padding: 32px 36px;
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+  }
+  .panel-label {
+    font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 20px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .panel-label::after { content:''; flex:1; height:1px; background: var(--border); }
+
+  .serving-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    flex: 1;
+  }
+  .serving-cell {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    display: flex; flex-direction: column; justify-content: space-between;
+    position: relative; overflow: hidden;
+    transition: border-color 0.5s;
+  }
+  .serving-cell.active {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent), inset 0 0 40px rgba(59,130,246,0.05);
+    animation: glow 2s ease-in-out infinite;
+  }
+  @keyframes glow {
+    0%,100% { box-shadow: 0 0 0 1px var(--accent), inset 0 0 40px rgba(59,130,246,0.05); }
+    50%      { box-shadow: 0 0 0 1px var(--accent), inset 0 0 60px rgba(59,130,246,0.1), 0 0 30px rgba(59,130,246,0.15); }
+  }
+  .cell-dept {
+    font-size: 11px; letter-spacing: 1px; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 12px;
+  }
+  .cell-dept.active { color: var(--accent); }
+  .cell-token {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 64px; line-height: 1;
+    color: var(--muted);
+    transition: color 0.4s, transform 0.4s;
+  }
+  .serving-cell.active .cell-token {
+    color: #fff;
+  }
+  .cell-token.flash {
+    animation: tokenFlash 0.6s ease;
+  }
+  @keyframes tokenFlash {
+    0%   { transform: scale(1.3); color: var(--accent); }
+    100% { transform: scale(1);   color: #fff; }
+  }
+  .cell-name { font-size: 14px; font-weight: 600; color: var(--text); margin-top: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cell-prefix-bar {
+    position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    opacity: 0; transition: opacity 0.4s;
+  }
+  .serving-cell.active .cell-prefix-bar { opacity: 1; }
+
+  /* RIGHT - Queue */
+  .queue-panel {
+    padding: 32px 36px;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .queue-rows { flex: 1; overflow: hidden; display: flex; flex-direction: column; gap: 10px; }
+  .q-row {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 18px;
+    display: flex; align-items: center; gap: 14px;
+    animation: slideIn 0.3s ease;
+    flex-shrink: 0;
+  }
+  @keyframes slideIn {
+    from { opacity:0; transform:translateX(16px); }
+    to   { opacity:1; transform:none; }
+  }
+  .q-pos {
+    font-family: 'DM Mono', monospace;
+    font-size: 13px; color: var(--muted);
+    min-width: 24px; text-align: center;
+  }
+  .q-tok {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px; color: var(--text);
+    min-width: 72px;
+  }
+  .q-dept-badge {
+    font-size: 11px; padding: 3px 10px; border-radius: 6px;
+    background: rgba(59,130,246,0.12); color: var(--accent);
+    font-weight: 600; letter-spacing: 0.5px;
+    white-space: nowrap;
+  }
+  .q-name-col { flex:1; font-size: 14px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .q-wait { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+  .no-queue { flex:1; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:12px; color: var(--muted); }
+  .no-queue .icon { font-size: 48px; }
+
+  /* ── TICKER ── */
+  .ticker {
+    background: linear-gradient(90deg, #0f1a3d, #162050);
+    border-top: 1px solid var(--border);
+    padding: 12px 0;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .ticker-inner {
+    display: inline-block;
+    animation: ticker 30s linear infinite;
+    font-size: 14px; color: var(--muted);
+    padding-left: 100%;
+    font-family: 'DM Mono', monospace;
+  }
+  @keyframes ticker {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-100%); }
+  }
+  .ticker-sep { color: var(--accent); margin: 0 24px; }
+
+  /* ── AUDIO BUTTON (floating, always visible) ── */
+  #audioBtn {
+    position: fixed; bottom: 20px; right: 20px; z-index: 999;
+    width: 48px; height: 48px; border-radius: 50%;
+    background: rgba(30,40,80,0.85);
+    border: 1px solid var(--border);
+    color: var(--muted); font-size: 20px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(8px);
+    transition: background 0.2s, color 0.2s;
+  }
+  #audioBtn.on  { background: rgba(59,130,246,0.25); color: var(--accent); border-color: var(--accent); }
+  #audioBtn.off { animation: audioPulse 2s ease-in-out infinite; }
+  @keyframes audioPulse { 0%,100%{opacity:1;} 50%{opacity:0.5;} }
+
+  /* Status dot */
+  .live-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--green);
+    display: inline-block; margin-left: 8px;
+    animation: livePulse 2s ease-in-out infinite;
+  }
+  @keyframes livePulse { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+</style>
+</head>
+<body>
+<!-- AUDIO TOGGLE BUTTON -->
+<button id="audioBtn" class="off" onclick="toggleAudio()" title="Toggle audio announcements">🔇</button>
+
+<div class="board">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-left">
+      <div class="logo-box">🏫</div>
+      <div class="school-block">
+        <div class="name">YOUR SCHOOL NAME</div>
+        <div class="sub">RECEPTION · QUEUE SYSTEM</div>
+      </div>
+    </div>
+    <div class="header-center">
+      <div class="board-title">NOW SERVING</div>
+      <div class="board-sub">Live Queue Display <span class="live-dot"></span></div>
+    </div>
+    <div class="header-right">
+      <div class="clock" id="clock">--:--</div>
+      <div class="date-str" id="dateStr"></div>
+    </div>
+  </div>
+
+  <!-- CONTENT -->
+  <div class="content">
+
+    <!-- NOW SERVING -->
+    <div class="now-serving">
+      <div class="panel-label">Now Serving</div>
+      <div class="serving-grid" id="servingGrid">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+
+    <!-- QUEUE -->
+    <div class="queue-panel">
+      <div class="panel-label">Next Up</div>
+      <div class="queue-rows" id="queueRows">
+        <div class="no-queue">
+          <div class="icon">⏳</div>
+          <div>Loading queue...</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- TICKER -->
+  <div class="ticker">
+    <span class="ticker-inner" id="tickerInner">
+      Welcome to the Queue Management System
+      <span class="ticker-sep">◆</span>
+      Please scan the QR code at the reception to get your token
+      <span class="ticker-sep">◆</span>
+      مرحباً بكم في نظام إدارة الدور
+      <span class="ticker-sep">◆</span>
+      يُرجى مسح رمز QR عند الاستقبال للحصول على رقم دورك
+      <span class="ticker-sep">◆</span>
+    </span>
+  </div>
+
+</div>
+
+<script>
+  const GAS_URL = 'https://script.google.com/macros/s/AKfycbyxhqVi3BPh_ksWRJ5n9TWLGBK8HbEhxqqwqV4Bfft7VJJlGxRWI9PPS4Zhw_aKN1TOQQ/exec';
+
+  const DEPTS = [
+    { key:'REG', name:'Registrar',     nameAr:'المسجل',          prefix:'R'  },
+    { key:'TRP', name:'Transport',     nameAr:'النقل',            prefix:'TR' },
+    { key:'TC',  name:'TC Incharge',   nameAr:'مسؤول TC',         prefix:'TC' },
+    { key:'AD',  name:'Asst Director', nameAr:'المدير المساعد',   prefix:'AD' },
+    { key:'FIN', name:'Finance',       nameAr:'الشؤون المالية',   prefix:'F'  },
+  ];
+
+  let lastTokens  = {};
+  let audioReady  = false;
+  let audioOn     = false;
+  let initialized = false;
+
+  // ── CLOCK ──
+  function updateClock() {
+    const now = new Date();
+    document.getElementById('clock').textContent =
+      now.toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+    document.getElementById('dateStr').textContent =
+      now.toLocaleDateString('en-GB', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+  }
+  setInterval(updateClock, 1000);
+  updateClock();
+
+  // ── AUDIO TOGGLE (tap the 🔇 button to enable) ──
+  function toggleAudio() {
+    const btn = document.getElementById('audioBtn');
+
+    if (!audioReady) {
+      // Browser requires a user gesture before audio is allowed — first tap unlocks it
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const buf = ctx.createBuffer(1, 1, 22050);
+        const src = ctx.createBufferSource();
+        src.buffer = buf; src.connect(ctx.destination); src.start(0);
+      } catch(e) {}
+      try {
+        const warm = new SpeechSynthesisUtterance(' ');
+        warm.volume = 0; speechSynthesis.speak(warm);
+      } catch(e) {}
+      audioReady = true;
+    }
+
+    audioOn = !audioOn;
+    btn.textContent = audioOn ? '🔊' : '🔇';
+    btn.className   = audioOn ? 'on' : 'off';
+  }
+
+  // ── BEEP (double-tone airport PA style) ──
+  function beep() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      [[880, 0, 0.18], [1100, 0.22, 0.18]].forEach(([freq, start, dur]) => {
+        const osc = ctx.createOscillator();
+        const g   = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, ctx.currentTime + start);
+        g.gain.setValueAtTime(0.9, ctx.currentTime + start);
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + dur);
+        osc.connect(g); g.connect(ctx.destination);
+        osc.start(ctx.currentTime + start);
+        osc.stop(ctx.currentTime + start + dur + 0.05);
+      });
+    } catch(e) {}
+  }
+
+  // ── SPEECH ANNOUNCEMENT (English then Arabic) ──
+  function announce(token, deptName, deptNameAr) {
+    try {
+      speechSynthesis.cancel();
+      const en = new SpeechSynthesisUtterance(`Token ${token}, please proceed to ${deptName}.`);
+      en.lang = 'en-US'; en.rate = 0.88; en.pitch = 1.05; en.volume = 1;
+      const ar = new SpeechSynthesisUtterance(`رقم ${token}، يُرجى التوجه إلى ${deptNameAr}.`);
+      ar.lang = 'ar-SA'; ar.rate = 0.88; ar.pitch = 1; ar.volume = 1;
+      en.onend = () => setTimeout(() => speechSynthesis.speak(ar), 400);
+      speechSynthesis.speak(en);
+    } catch(e) {}
+  }
+
+  // ── SERVING GRID ──
+  function buildServingGrid(allRows) {
+    const today = new Date().toISOString().slice(0,10);
+    const grid  = document.getElementById('servingGrid');
+
+    const cells = DEPTS.map(d => {
+      const called  = allRows.filter(r =>
+        r[1] === d.key && r[7] === 'CALLED' && String(r[8]).startsWith(today)
+      );
+      const current  = called.length ? called[called.length-1] : null;
+      const tok      = current ? current[0] : '—';
+      const name     = current ? (current[3] || '') : '';
+      const isActive = !!current;
+      const changed  = initialized && lastTokens[d.key] !== undefined && lastTokens[d.key] !== tok;
+
+      if (changed && isActive && audioOn) {
+        beep();
+        setTimeout(() => announce(tok, d.name, d.nameAr), 500);
+      }
+
+      lastTokens[d.key] = tok;
+
+      return `
+        <div class="serving-cell ${isActive?'active':''}">
+          <div class="cell-prefix-bar"></div>
+          <div class="cell-dept ${isActive?'active':''}">${d.name}</div>
+          <div class="cell-token ${changed&&isActive?'flash':''}">${tok}</div>
+          ${name ? `<div class="cell-name">${name}</div>` : ''}
+        </div>`;
+    });
+
+    grid.innerHTML = cells.join('');
+  }
+
+  // ── QUEUE LIST ──
+  function buildQueueList(allRows) {
+    const today = new Date().toISOString().slice(0,10);
+    const waiting = allRows.filter(r =>
+      (r[7]==='WAITING' || r[7]==='PRIORITY') && String(r[8]).startsWith(today)
+    ).sort((a,b) => {
+      if (a[7]==='PRIORITY' && b[7]!=='PRIORITY') return -1;
+      if (b[7]==='PRIORITY' && a[7]!=='PRIORITY') return 1;
+      return new Date(a[8]) - new Date(b[8]);
+    }).slice(0, 8);
+
+    const rows = document.getElementById('queueRows');
+    if (waiting.length === 0) {
+      rows.innerHTML = `<div class="no-queue"><div class="icon">✅</div><div>Queue is clear</div></div>`;
+      return;
+    }
+    rows.innerHTML = waiting.map((r, i) => {
+      const deptName = DEPTS.find(d=>d.key===r[1])?.name || r[1];
+      const issuedAt = r[8] ? new Date(r[8]) : null;
+      const waitMins = issuedAt ? Math.round((Date.now()-issuedAt)/60000) : '';
+      return `
+        <div class="q-row">
+          <div class="q-pos">${i+1}</div>
+          <div class="q-tok">${r[0]}</div>
+          <div class="q-dept-badge">${deptName}</div>
+          <div class="q-name-col">${r[3] || 'Parent'}</div>
+          <div class="q-wait">${waitMins ? waitMins+'m' : ''}</div>
+        </div>`;
+    }).join('');
+  }
+
+  // ── FETCH ALL DEPTS ──
+  async function fetchAll() {
+    const allRows = [];
+    await Promise.all(DEPTS.map(async d => {
+      try {
+        const res = await fetch(GAS_URL, {
+          method: 'POST',
+          headers: {'Content-Type':'application/x-www-form-urlencoded'},
+          body: new URLSearchParams({action:'getQueue', dept: d.key}),
+          redirect: 'follow'
+        });
+        const data = await res.json();
+        if (Array.isArray(data)) allRows.push(...data);
+      } catch(err) {}
+    }));
+    return allRows;
+  }
+
+  async function refresh() {
+    try {
+      const rows = await fetchAll();
+      buildServingGrid(rows);
+      buildQueueList(rows);
+      initialized = true;
+    } catch(err) { console.error(err); }
+  }
+
+  buildServingGrid([]);
+  refresh();
+  setInterval(refresh, 8000);
+</script>
+</body>
+</html>
