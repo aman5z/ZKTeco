@@ -2505,7 +2505,7 @@ async function saveSettings(){
   lset('zkUrl', zkUrl);
   lset('gasUrl', gasUrl);
   if(el('sGasEmail') && el('sGasEmail').value) lset('gasEmail', el('sGasEmail').value.trim());
-  if(el('sGasPass') && el('sGasPass').value) lset('gasPass', el('sGasPass').value);
+  if(el('sGasPass') && el('sGasPass').value && el('sGasPass').value !== '••••••••') lset('gasPass', el('sGasPass').value);
   if(el('sTermWsUrl') && el('sTermWsUrl').value) lset('termWsUrl', el('sTermWsUrl').value.trim());
 
   if (logoFile) {
@@ -2662,8 +2662,9 @@ async function testGasServer(){
   try{
     const r=await fetch(url,{method:'POST',body:new URLSearchParams({action:'login',email:'test',password:'test'})});
     const t=await r.text();
-    el('gasTestResult').textContent=t.includes('Invalid')||t.includes('credentials')?'✅ GAS connected (auth working)':'⚠ Unexpected response: '+t.substring(0,40);
-    el('gasTestResult').style.color='var(--green)';
+    const gasOk=t.includes('Invalid')||t.includes('credentials')||t.includes('error')||t.includes('token');
+    el('gasTestResult').textContent=gasOk?'✅ GAS reachable (server responding)':'⚠ Unexpected response: '+t.substring(0,40);
+    el('gasTestResult').style.color=gasOk?'var(--green)':'var(--yellow)';
   }catch(e){
     el('gasTestResult').textContent='❌ Cannot reach GAS: '+e.message;
     el('gasTestResult').style.color='var(--red)';
