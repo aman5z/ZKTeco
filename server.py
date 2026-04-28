@@ -652,10 +652,11 @@ def _cfg_int(section, key, default):
 MDB_PATH    = _cfg('database', 'mdb_path', '') or None  # from settings.ini
 
 # ── Config-driven constants (all read from settings.ini) ───────────────────────
-DEVICE_IPS         = _cfg_list('devices', 'ips', _DEFAULT_IPS)
-DEVICE_PORT        = _cfg_int ('devices', 'port',    4370)
-DEVICE_TIMEOUT     = _cfg_int ('devices', 'timeout', 15)
-CACHE_REFRESH_MINS = _cfg_int ('server',  'cache_refresh_mins', 5)
+DEVICE_IPS          = _cfg_list('devices', 'ips', _DEFAULT_IPS)
+DEVICE_PORT         = _cfg_int ('devices', 'port',         4370)
+DEVICE_TIMEOUT      = _cfg_int ('devices', 'timeout',        15)
+DEVICE_PULL_TIMEOUT = _cfg_int ('devices', 'pull_timeout',  120)
+CACHE_REFRESH_MINS  = _cfg_int ('server',  'cache_refresh_mins', 5)
 APP_VERSION        = _cfg     ('app',     'version', '2.2')
 
 DEFAULT_ADMIN_PASSWORD = _cfg('app', 'default_admin_password', 'Gaesous180')
@@ -1882,7 +1883,7 @@ def _pull_single_device(ip, target_date):
     t = threading.Thread(target=_do_pull)
     t.daemon = True
     t.start()
-    t.join(timeout=DEVICE_TIMEOUT + 5)
+    t.join(timeout=DEVICE_PULL_TIMEOUT)
     return result_box[0]
 
 def _check_device_status(ip):
@@ -4324,6 +4325,8 @@ def get_config():
         "device_count":   len(DEVICE_IPS),
         "device_ips":     DEVICE_IPS,
         "refresh_mins":   CACHE_REFRESH_MINS,
+        "device_timeout": DEVICE_TIMEOUT,
+        "pull_timeout":   DEVICE_PULL_TIMEOUT,
         "admin_inactivity_mins":    ADMIN_INACTIVITY_MINS,
         "employee_inactivity_mins": EMPLOYEE_INACTIVITY_MINS,
     })
