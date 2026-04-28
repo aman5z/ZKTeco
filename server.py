@@ -2102,6 +2102,8 @@ def db_status():
 @app.route("/api/sql", methods=["POST"])
 @admin_required
 def execute_sql():
+    # This endpoint is an intentional admin-only SQL console.
+    # Executing arbitrary SQL is its purpose; access is restricted to admins.
     req = request.json or {}
     query = req.get("query", "").strip()
     if not query:
@@ -2113,17 +2115,18 @@ def execute_sql():
         
     try:
         conn = get_db()
-        cursor = conn.execute(query)
-        if query.upper().startswith("SELECT") or query.upper().startswith("PRAGMA"):
-            rows = cursor.fetchall()
-            cols = [desc[0] for desc in cursor.description] if cursor.description else []
+        try:
+            cursor = conn.execute(query)
+            if query.upper().startswith("SELECT") or query.upper().startswith("PRAGMA"):
+                rows = cursor.fetchall()
+                cols = [desc[0] for desc in cursor.description] if cursor.description else []
+                return jsonify({"columns": cols, "rows": [list(r) for r in rows]})
+            else:
+                conn.commit()
+                rowcount = cursor.rowcount
+                return jsonify({"message": f"Query executed successfully. Rows affected: {rowcount}"})
+        finally:
             conn.close()
-            return jsonify({"columns": cols, "rows": [list(r) for r in rows]})
-        else:
-            conn.commit()
-            rowcount = cursor.rowcount
-            conn.close()
-            return jsonify({"message": f"Query executed successfully. Rows affected: {rowcount}"})
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
@@ -2215,38 +2218,39 @@ def db_resolve_unknown():
 
         conn = get_db()
         now  = datetime.now().isoformat()
+        try:
+            # Re-attribute punch records stored under the raw UID to the real badge
+            if uid != badge:
+                conn.execute(
+                    "UPDATE punches SET badge=? WHERE badge=? AND device_ip=?",
+                    (badge, uid, ip)
+                )
 
-        # Re-attribute punch records stored under the raw UID to the real badge
-        if uid != badge:
-            conn.execute(
-                "UPDATE punches SET badge=? WHERE badge=? AND device_ip=?",
-                (badge, uid, ip)
-            )
+            # Create or update the employee record
+            existing = conn.execute(
+                "SELECT badge FROM employees WHERE badge=?", (badge,)
+            ).fetchone()
 
-        # Create or update the employee record
-        existing = conn.execute(
-            "SELECT badge FROM employees WHERE badge=?", (badge,)
-        ).fetchone()
+            if existing:
+                # Update only fields that were provided
+                sets = ["updated_at=?"]
+                vals = [now]
+                if name: sets.insert(0, "name=?"); vals.insert(0, name)
+                if dept: sets.insert(0, "dept=?"); vals.insert(0, dept)
+                vals.append(badge)
+                conn.execute(
+                    "UPDATE employees SET {0} WHERE badge=?".format(", ".join(sets)), vals
+                )
+            else:
+                # Create new employee record
+                conn.execute(
+                    "INSERT INTO employees (badge, name, dept, active, updated_at) VALUES (?,?,?,?,?)",
+                    (badge, name or uid, dept or "UNKNOWN", 1, now)
+                )
 
-        if existing:
-            # Update only fields that were provided
-            sets = ["updated_at=?"]
-            vals = [now]
-            if name: sets.insert(0, "name=?"); vals.insert(0, name)
-            if dept: sets.insert(0, "dept=?"); vals.insert(0, dept)
-            vals.append(badge)
-            conn.execute(
-                "UPDATE employees SET {0} WHERE badge=?".format(", ".join(sets)), vals
-            )
-        else:
-            # Create new employee record
-            conn.execute(
-                "INSERT INTO employees (badge, name, dept, active, updated_at) VALUES (?,?,?,?,?)",
-                (badge, name or uid, dept or "UNKNOWN", 1, now)
-            )
-
-        conn.commit()
-        conn.close()
+            conn.commit()
+        finally:
+            conn.close()
 
         write_audit(session.get("username","?"), "RESOLVE_UNKNOWN",
                     "uid={0} ip={1} -> badge={2} name={3} dept={4}".format(
@@ -2267,61 +2271,63 @@ def db_auto_map_unknown():
     """
     try:
         conn = get_db()
-        unresolved = conn.execute(
-            "SELECT device_ip, uid FROM unknown_users WHERE resolved=0"
-        ).fetchall()
+        try:
+            unresolved = conn.execute(
+                "SELECT device_ip, uid FROM unknown_users WHERE resolved=0"
+            ).fetchall()
 
-        mapped = 0; skipped = 0
-        now = datetime.now().isoformat()
+            mapped = 0; skipped = 0
+            now = datetime.now().isoformat()
 
-        global _uid_to_badge_cache
+            global _uid_to_badge_cache
 
-        results = []
+            results = []
 
-        for row in unresolved:
-            ip  = row["device_ip"]
-            uid = row["uid"]
+            for row in unresolved:
+                ip  = row["device_ip"]
+                uid = row["uid"]
 
-            # Check if uid directly matches an employee badge
-            emp = conn.execute(
-                "SELECT badge, name, dept FROM employees WHERE badge=?", (uid,)
-            ).fetchone()
+                # Check if uid directly matches an employee badge
+                emp = conn.execute(
+                    "SELECT badge, name, dept FROM employees WHERE badge=?", (uid,)
+                ).fetchone()
 
-            if not emp:
-                skipped += 1
-                results.append({"uid": uid, "device_ip": ip, "status": "skipped",
-                                 "reason": "No employee with badge matching this UID"})
-                continue
+                if not emp:
+                    skipped += 1
+                    results.append({"uid": uid, "device_ip": ip, "status": "skipped",
+                                     "reason": "No employee with badge matching this UID"})
+                    continue
 
-            badge = emp["badge"]
+                badge = emp["badge"]
 
-            # Mark resolved
-            conn.execute(
-                "UPDATE unknown_users SET resolved=1 WHERE device_ip=? AND uid=?",
-                (ip, uid)
-            )
-
-            # Update UID->badge cache
-            _uid_to_badge_cache[uid] = badge
-
-            # Re-attribute any punch records stored under the raw UID
-            punches_updated = 0
-            if uid != badge:
+                # Mark resolved
                 conn.execute(
-                    "UPDATE punches SET badge=? WHERE badge=? AND device_ip=?",
-                    (badge, uid, ip)
+                    "UPDATE unknown_users SET resolved=1 WHERE device_ip=? AND uid=?",
+                    (ip, uid)
                 )
-                punches_updated = conn.execute(
-                    "SELECT changes()"
-                ).fetchone()[0]
 
-            mapped += 1
-            results.append({"uid": uid, "device_ip": ip, "status": "mapped",
-                             "badge": badge, "name": emp["name"], "dept": emp["dept"],
-                             "punches_updated": punches_updated})
+                # Update UID->badge cache
+                _uid_to_badge_cache[uid] = badge
 
-        conn.commit()
-        conn.close()
+                # Re-attribute any punch records stored under the raw UID
+                punches_updated = 0
+                if uid != badge:
+                    conn.execute(
+                        "UPDATE punches SET badge=? WHERE badge=? AND device_ip=?",
+                        (badge, uid, ip)
+                    )
+                    punches_updated = conn.execute(
+                        "SELECT changes()"
+                    ).fetchone()[0]
+
+                mapped += 1
+                results.append({"uid": uid, "device_ip": ip, "status": "mapped",
+                                 "badge": badge, "name": emp["name"], "dept": emp["dept"],
+                                 "punches_updated": punches_updated})
+
+            conn.commit()
+        finally:
+            conn.close()
 
         write_audit(session.get("username","?"), "AUTO_MAP_UNKNOWN",
                     "mapped={0} skipped={1}".format(mapped, skipped),
