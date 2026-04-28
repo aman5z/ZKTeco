@@ -1,0 +1,1364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ERP Console — Feature Map</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0f18;
+    --surface: #131723;
+    --surface2: #1a1f30;
+    --border: #252b40;
+    --accent: #00c8ff;
+    --accent2: #7c5cfc;
+    --accent3: #00e5a0;
+    --accent4: #ff6b6b;
+    --accent5: #ffc94a;
+    --text: #e8eaf0;
+    --muted: #6b7280;
+    --dim: #3a4060;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,200,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,200,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .page { position: relative; z-index: 1; max-width: 1400px; margin: 0 auto; padding: 40px 32px 80px; }
+
+  /* ── HEADER ── */
+  header {
+    text-align: center;
+    margin-bottom: 64px;
+  }
+  .badge-row {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+  .badge {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    padding: 4px 12px;
+    border-radius: 100px;
+    border: 1px solid;
+    letter-spacing: 0.08em;
+  }
+  .badge-blue  { color: var(--accent);  border-color: var(--accent);  background: rgba(0,200,255,0.08); }
+  .badge-purple{ color: var(--accent2); border-color: var(--accent2); background: rgba(124,92,252,0.08);}
+  .badge-green { color: var(--accent3); border-color: var(--accent3); background: rgba(0,229,160,0.08); }
+
+  header h1 {
+    font-family: 'Space Mono', monospace;
+    font-size: clamp(28px, 5vw, 52px);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    margin-bottom: 16px;
+  }
+  header h1 span { color: var(--accent); }
+
+  header p {
+    color: var(--muted);
+    font-size: 15px;
+    max-width: 580px;
+    margin: 0 auto;
+    line-height: 1.6;
+  }
+
+  .stat-row {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    margin-top: 36px;
+    flex-wrap: wrap;
+  }
+  .stat {
+    text-align: center;
+  }
+  .stat-num {
+    font-family: 'Space Mono', monospace;
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1;
+  }
+  .stat-label {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 4px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  /* ── SECTION HEADER ── */
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 20px;
+    margin-top: 52px;
+  }
+  .section-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+  .section-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .section-sub {
+    color: var(--muted);
+    font-size: 13px;
+    margin-top: 2px;
+  }
+  .section-line {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ── FEATURE GRID ── */
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+  }
+  .feature-grid.dense {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+  }
+  .feature-grid.wide {
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  }
+
+  /* ── CARD ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px 22px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s, transform 0.2s;
+    cursor: default;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 3px; height: 100%;
+    border-radius: 14px 0 0 14px;
+  }
+  .card.blue::before   { background: var(--accent); }
+  .card.purple::before { background: var(--accent2); }
+  .card.green::before  { background: var(--accent3); }
+  .card.red::before    { background: var(--accent4); }
+  .card.yellow::before { background: var(--accent5); }
+
+  .card:hover {
+    border-color: var(--dim);
+    transform: translateY(-2px);
+  }
+
+  .card-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .card-icon {
+    font-size: 22px;
+    line-height: 1;
+    margin-top: 2px;
+    flex-shrink: 0;
+  }
+  .card-title {
+    font-weight: 600;
+    font-size: 15px;
+    line-height: 1.2;
+  }
+  .card-subtitle {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .feature-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .feature-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 13px;
+    color: #a0a8c0;
+    line-height: 1.4;
+  }
+  .feature-list li::before {
+    content: '→';
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--dim);
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .api-tag {
+    display: inline-flex;
+    align-items: center;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    margin-top: 12px;
+    background: rgba(0,200,255,0.06);
+    border: 1px solid rgba(0,200,255,0.15);
+    color: var(--accent);
+    letter-spacing: 0.04em;
+  }
+  .api-tag.purple {
+    background: rgba(124,92,252,0.06);
+    border-color: rgba(124,92,252,0.2);
+    color: var(--accent2);
+  }
+  .api-tag.green {
+    background: rgba(0,229,160,0.06);
+    border-color: rgba(0,229,160,0.2);
+    color: var(--accent3);
+  }
+
+  /* ── ROUTE TABLE ── */
+  .route-table {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .route-table table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .route-table th {
+    background: var(--surface2);
+    padding: 12px 16px;
+    text-align: left;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+  }
+  .route-table td {
+    padding: 10px 16px;
+    border-bottom: 1px solid rgba(37,43,64,0.5);
+    vertical-align: top;
+  }
+  .route-table tr:last-child td { border-bottom: none; }
+  .route-table tr:hover td { background: rgba(255,255,255,0.015); }
+
+  .method {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 700;
+  }
+  .GET    { background: rgba(0,229,160,0.12); color: #00e5a0; }
+  .POST   { background: rgba(0,200,255,0.12); color: #00c8ff; }
+  .PUT    { background: rgba(255,201,74,0.12); color: #ffc94a; }
+  .DELETE { background: rgba(255,107,107,0.12); color: #ff6b6b; }
+  .PATCH  { background: rgba(124,92,252,0.12); color: #7c5cfc; }
+
+  .route-path {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--text);
+  }
+
+  /* ── ARCH DIAGRAM ── */
+  .arch {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 32px;
+    text-align: center;
+  }
+
+  .arch-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin: 12px 0;
+  }
+  .arch-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 20px;
+    min-width: 140px;
+    text-align: center;
+  }
+  .arch-box .icon { font-size: 24px; display: block; margin-bottom: 6px; }
+  .arch-box .name { font-size: 12px; font-weight: 600; color: var(--text); }
+  .arch-box .tech { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--muted); margin-top: 3px; }
+  .arch-arrow {
+    font-family: 'Space Mono', monospace;
+    color: var(--dim);
+    font-size: 18px;
+  }
+  .arch-separator {
+    width: 100%;
+    height: 1px;
+    background: var(--border);
+    margin: 20px 0;
+    position: relative;
+  }
+  .arch-separator span {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--surface);
+    padding: 0 12px;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+  }
+
+  /* ── PERMISSIONS TABLE ── */
+  .perm-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+  }
+  .perm-item {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--accent3);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .perm-item::before { content: '✓'; opacity: 0.6; }
+
+  /* ── FOOTER ── */
+  footer {
+    margin-top: 80px;
+    text-align: center;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 12px;
+    font-family: 'Space Mono', monospace;
+  }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--dim); border-radius: 3px; }
+
+  @media(max-width:600px){
+    .page { padding: 24px 16px 60px; }
+    .stat-row { gap: 24px; }
+    .arch-row { gap: 10px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HEADER -->
+  <header>
+    <div class="badge-row">
+      <span class="badge badge-blue">Flask v2.2</span>
+      <span class="badge badge-purple">Google Apps Script</span>
+      <span class="badge badge-green">ZKTeco SDK</span>
+      <span class="badge badge-blue">SQLite · PWA</span>
+    </div>
+    <h1>🏢 ERP Console<br><span>Feature Map</span></h1>
+    <p>Complete technical reference for the ZKTeco Attendance + IT Helpdesk ERP system — all modules, APIs, and capabilities in one view.</p>
+    <div class="stat-row">
+      <div class="stat"><div class="stat-num">70+</div><div class="stat-label">API Routes</div></div>
+      <div class="stat"><div class="stat-num">12</div><div class="stat-label">Modules</div></div>
+      <div class="stat"><div class="stat-num">9</div><div class="stat-label">ZK Devices</div></div>
+      <div class="stat"><div class="stat-num">2</div><div class="stat-label">Backends</div></div>
+    </div>
+  </header>
+
+  <!-- ARCHITECTURE -->
+  <div class="section-header">
+    <div class="section-icon" style="background:rgba(0,200,255,0.1)">🏗️</div>
+    <div>
+      <div class="section-title" style="color:var(--accent)">System Architecture</div>
+      <div class="section-sub">Two-backend design: local Flask + cloud Google Apps Script</div>
+    </div>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="arch">
+    <div class="arch-row">
+      <div class="arch-box">
+        <span class="icon">🌐</span>
+        <div class="name">Browser Client</div>
+        <div class="tech">HTML · CSS · Vanilla JS</div>
+      </div>
+    </div>
+    <div class="arch-row">
+      <div class="arch-arrow">↙</div>
+      <div class="arch-arrow">↓</div>
+      <div class="arch-arrow">↘</div>
+    </div>
+    <div class="arch-row">
+      <div class="arch-box" style="border-color:rgba(0,200,255,0.3)">
+        <span class="icon">🐍</span>
+        <div class="name">Flask Server</div>
+        <div class="tech">Python · SQLite · :5000</div>
+      </div>
+      <div class="arch-box" style="border-color:rgba(124,92,252,0.3)">
+        <span class="icon">☁️</span>
+        <div class="name">Google Apps Script</div>
+        <div class="tech">GAS · Sheets · Drive</div>
+      </div>
+      <div class="arch-box" style="border-color:rgba(0,229,160,0.3)">
+        <span class="icon">📡</span>
+        <div class="name">ZKTeco Devices</div>
+        <div class="tech">TCP :4370 · pyzk</div>
+      </div>
+    </div>
+    <div class="arch-separator"><span>DATA LAYER</span></div>
+    <div class="arch-row">
+      <div class="arch-box">
+        <span class="icon">🗄️</span>
+        <div class="name">attendance.db</div>
+        <div class="tech">SQLite · WAL mode</div>
+      </div>
+      <div class="arch-box">
+        <span class="icon">📊</span>
+        <div class="name">Google Sheets</div>
+        <div class="tech">Users · Tickets · Tokens</div>
+      </div>
+      <div class="arch-box">
+        <span class="icon">📁</span>
+        <div class="name">Access MDB</div>
+        <div class="tech">ZKTeco att2000.mdb</div>
+      </div>
+      <div class="arch-box">
+        <span class="icon">💾</span>
+        <div class="name">IndexedDB</div>
+        <div class="tech">Offline punch cache</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODULE 1: HR & ATTENDANCE -->
+  <div class="section-header">
+    <div class="section-icon" style="background:rgba(0,200,255,0.1)">👥</div>
+    <div>
+      <div class="section-title" style="color:var(--accent)">Human Resources & Attendance</div>
+      <div class="section-sub">Core biometric attendance tracking and employee management</div>
+    </div>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="feature-grid">
+    <div class="card blue">
+      <div class="card-head">
+        <div class="card-icon">📊</div>
+        <div>
+          <div class="card-title">Live Dashboard</div>
+          <div class="card-subtitle">Real-time attendance overview</div>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li>Present / Absent / Late counters with SSE streaming</li>
+        <li>Department-level attendance percentages</li>
+        <li>Offline employee detection</li>
+        <li>Auto-refresh with configurable cache interval (default 5 min)</li>
+        <li>Force refresh button (admin)</li>
+      </ul>
+      <div class="api-tag">GET /api/today · /api/cache/status</div>
+    </div>
+
+    <div class="card blue">
+      <div class="card-head">
+        <div class="card-icon">📅</div>
+        <div>
+          <div class="card-title">Today's Attendance</div>
+          <div class="card-subtitle">Current-day punch view</div>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li>All punches for the day with timestamps</li>
+        <li>First-in / last-out per employee</li>
+        <li>Absent employee list with department grouping</li>
+        <li>Export to Excel (absent report)</li>
+        <li>Plain-text absent summary for messaging</li>
+      </ul>
+      <div class="api-tag">GET /api/today · /api/today/export · /api/today/absent-text</div>
+    </div>
+
+    <div class="card blue">
+      <div class="card-head">
+        <div class="card-icon">📈</div>
+        <div>
+          <div class="card-title">History Reports</div>
+          <div class="card-subtitle">Date-range attendance analysis</div>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li>Date-range absent report from MDB or SQLite</li>
+        <li>Per-department breakdown with sorting</li>
+        <li>Deduplication logic (60-second gap filter)</li>
+        <li>Export to Excel (absent_history.xlsx)</li>
+        <li>Configurable working days per department</li>
+      </ul>
+      <div class="api-tag">GET /api/history · POST /api/history/export</div>
+    </div>
+
+    <div class="card blue">
+      <div class="card-head">
+        <div class="card-icon">🗓️</div>
+        <div>
+          <div class="card-title">Employee Calendar</div>
+          <div class="card-subtitle">Individual punch history view</div>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li>Monthly punch calendar per employee</li>
+        <li>Present / Absent / Holiday / Weekend coloring</li>
+        <li>Shift compliance check (early / late / overtime)</li>
+        <li>Monthly summary stats (working days, leaves taken)</li>
+        <li>Export individual employee report to Excel</li>
+      </ul>
+      <div class="api-tag">GET /api/employee/:badge/report · /api/employee/:badge/monthly-summary</div>
+    </div>
+
+    <div class="card blue">
+      <div class="card-head">
+        <div class="card-icon">👆</div>
+        <div>
+          <div class="card-title">Remote Punching</div>
+          <div class="card-subtitle">Software-based check-in/out</div>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li>Employee self punch-in/out from browser</li>
+        <li>Offline punch cached in IndexedDB → synced on reconnect</li>
+        <li>Admin direct punch on behalf of employee</li>
+        <li>Punch approval workflow (request → admin approve)</li>
+        <li>Writes directly to ZKTeco device via raw TCP</li>
+        <li>Admin device-queue monitor and retry</li>
+      </ul>
+      <div class="api-tag">POST /api/punch/self · /api/punch/request · /api/punch/admin/approve/:id</div>
+    </div>
+
+    <div class="card blue">
+      <div class="card-head">
+        <div class="card-icon">🏖️</div>
+        <div>
+          <div class="card-title">Leave & Holiday Admin</div>
+          <div class="card-subtitle">Calendar exception management</div>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li>System-wide or per-department holidays</li>
+        <li>Holiday date ranges with custom labels</li>
+        <li>Employee-specific leave overrides</li>
+        <li>Holidays excluded from absent counting</li>
+      </ul>
+      <div class="api-tag">GET/POST /api/holidays · DELETE /api/holidays/:id</div>
+    </div>
+  </div>
+
+  <!-- MODULE 2: SHIFT CONFIG -->
+  <div class="section-header">
+    <div class="section-icon" style="background:rgba(124,92,252,0.1)">⏰</div>
+    <div>
+      <div class="section-title" style="color:var(--accent2)">Shift & Schedule Configuration</div>
+      <div class="section-sub">Flexible shift rules per department and employee</div>
+    </div>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="feature-grid">
+    <div class="card purple">
+      <div class="card-head">
+        <div class="card-icon">🕐</div>
+        <div>
+          <div class="card-title">Shift Times</div>
+          <div class="card-subtitle">Per-department shift configuration</div>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li>Configurable shift_start, shift_end per department</li>
+        <li>Grace period in minutes (default 15 min)</li>
+        <li>Late / early detection in calendar view</li>
+      </ul>
+      <div class="api-tag purple">GET/POST /api/shifts</div>
+    </div>
+
+    <div class="card purple">
+      <div class="card-head">
+        <div class="card-icon">📆</div>
+        <div>
+          <div class="card-title">Workday Rules</div>
+          <div class="card-subtitle">Department & per-employee schedules</div>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li>Per-department workday mask (Mon–Fri, Sun–Thu, etc.)</li>
+        <li>Per-employee workday overrides</li>
+        <li>Weekends auto-excluded from absent reports</li>
+      </ul>
+      <div class="api-tag purple">GET/POST /api/workdays/dept · /api/workdays/employee</div>
+    </div>
+  </div>
+
+  <!-- MODULE 3: EMPLOYEE MANAGEMENT -->
+  <div class="section-header">
+    <div class="section-icon" style="background:rgba(0,229,160,0.1)">🧑‍💼</div>
+    <div>
+      <div class="section-title" style="color:var(--accent3)">Employee Management</div>
+      <div class="section-sub">Full CRUD for employee records with department grouping</div>
+    </div>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="feature-grid">
+    <div class="card green">
+      <div class="card-head">
+        <div class="card-icon">📋</div>
+        <div>
+          <div class="card-title">Employee Records</div>
+          <div class="card-subtitle">View, edit, add employees</div>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li>List all employees with badge, name, department</li>
+        <li>Add new employee (badge, name, dept, active)</li>
+        <li>Edit employee details inline</li>
+        <li>Enable / disable employee (soft delete)</li>
+        <li>Department filter + collapsed groups in UI</li>
+      </ul>
+      <div class="api-tag green">GET /api/employees · POST /api/employees/add · PUT /api/employee/:badge</div>
+    </div>
+
+    <div class="card green">
+      <div class="card-head">
+        <div class="card-icon">📤</div>
+        <div>
+          <div class="card-title">MDB Import & Export</div>
+          <div class="card-subtitle">ZKTeco Access database bridge</div>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li>Export USERINFO + DEPARTMENTS from att2000.mdb</li>
+        <li>Outputs employees_export.xlsx and .csv</li>
+        <li>Styled Excel with section headers and alt-rows</li>
+        <li>Scan MDB to discover table/column structure</li>
+        <li>Import employees from CSV into SQLite</li>
+        <li>Import punch history from MDB CHECKINOUT table</li>
+      </ul>
+      <div class="api-tag green">POST /api/db/import-mdb · /api/db/import-csv</div>
+    </div>
+
+    <div class="card green">
+      <div class="card-head">
+        <div class="card-icon">🔢</div>
+        <div>
+          <div class="card-title">Department Structure</div>
+          <div class="card-subtitle">Org unit configuration</div>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li>ADMIN, SUPPORT, TEACHING, CONDUCTOR, DRIVER, CLEANING STAFF</li>
+        <li>Excluded depts: DELETED, TRANSPORT, GAES</li>
+        <li>Display order configurable in settings.ini</li>
+        <li>Section grouping for Excel/PDF exports</li>
+      </ul>
+      <div class="api-tag green">GET /api/employees/departments</div>
+    </div>
+  </div>
+
+  <!-- MODULE 4: DEVICES -->
+  <div class="section-header">
+    <div class="section-icon" style="background:rgba(0,200,255,0.1)">📡</div>
+    <div>
+      <div class="section-title" style="color:var(--accent)">ZKTeco Hardware Management</div>
+      <div class="section-sub">Fleet control for 9 biometric terminals over local network</div>
+    </div>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="feature-grid">
+    <div class="card blue">
+      <div class="card-head">
+        <div class="card-icon">🖥️</div>
+        <div>
+          <div class="card-title">Device Fleet Monitor</div>
+          <div class="card-subtitle">Online/offline status for all terminals</div>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li>Ping all devices, show online/offline status</li>
+        <li>Friendly device names (stored, IP always shown)</li>
+        <li>Add / remove device IPs dynamically</li>
+        <li>Concurrent status checks via ThreadPoolExecutor</li>
+      </ul>
+      <div class="api-tag">GET /api/devices/status · /api/devices/list</div>
+    </div>
+
+    <div class="card blue">
+      <div class="card-head">
+        <div class="card-icon">⚡</div>
+        <div>
+          <div class="card-title">Remote Device Actions</div>
+          <div class="card-subtitle">Sync, reboot, download from UI</div>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li>Sync device clock to server time</li>
+        <li>Sync all clocks in one click</li>
+        <li>Reboot device remotely</li>
+        <li>Download enrolled users from device</li>
+        <li>Download fingerprint templates</li>
+        <li>Download raw attendance log from device</li>
+      </ul>
+      <div class="api-tag">POST /api/device/:ip/sync-clock · /reboot · GET /api/device/:ip/download/*</div>
+    </div>
+
+    <div class="card blue">
+      <div class="card-head">
+        <div class="card-icon">👤</div>
+        <div>
+          <div class="card-title">Unknown User Resolver</div>
+          <div class="card-subtitle">Map unrecognized device UIDs</div>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li>Detect punch records from UIDs not in employee table</li>
+        <li>Manual resolve: map UID → badge number</li>
+        <li>Auto-map: match by badge number automatically</li>
+        <li>New enrollments tracking across device fleet</li>
+      </ul>
+      <div class="api-tag">GET /api/db/unknown-users · POST /api/db/resolve-unknown · /api/db/auto-map-unknown</div>
+    </div>
+
+    <div class="card blue">
+      <div class="card-head">
+        <div class="card-icon">✍️</div>
+        <div>
+          <div class="card-title">ZK Writer (Raw TCP)</div>
+          <div class="card-subtitle">Write attendance records to device</div>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li>Custom ZKTeco protocol implementation (no pyzk needed)</li>
+        <li>CMD_WRITE_ATTLOG (cmd 79) packet builder</li>
+        <li>ZK time encoding (packed 32-bit integer)</li>
+        <li>Best-effort write with fallback to SQLite</li>
+        <li>Tested: F18, F22, K40, iClock 360/580, UA760, MA300</li>
+      </ul>
+      <div class="api-tag">POST /api/punch/admin/direct</div>
+    </div>
+  </div>
+
+  <!-- MODULE 5: AUTH & USERS -->
+  <div class="section-header">
+    <div class="section-icon" style="background:rgba(255,107,107,0.1)">🔐</div>
+    <div>
+      <div class="section-title" style="color:var(--accent4)">Authentication & User Management</div>
+      <div class="section-sub">Role-based access with session management</div>
+    </div>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="feature-grid">
+    <div class="card red">
+      <div class="card-head">
+        <div class="card-icon">🔑</div>
+        <div>
+          <div class="card-title">Login System</div>
+          <div class="card-subtitle">Admin + employee authentication</div>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li>PBKDF2 password hashing (werkzeug standard)</li>
+        <li>Flask session with .flask_secret key</li>
+        <li>Session lifetime: 7 days (configurable)</li>
+        <li>Inactivity timeout: admin 60 min, employee 20 min</li>
+        <li>Multi-session tracking per user</li>
+        <li>must_change_password flag on first login</li>
+      </ul>
+      <div class="api-tag" style="background:rgba(255,107,107,0.06);border-color:rgba(255,107,107,0.2);color:var(--accent4)">POST /api/auth/login · /logout · GET /api/auth/me</div>
+    </div>
+
+    <div class="card red">
+      <div class="card-head">
+        <div class="card-icon">🛡️</div>
+        <div>
+          <div class="card-title">Role-Based Access Control</div>
+          <div class="card-subtitle">Per-user permission matrix</div>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li>Roles: admin, employee</li>
+        <li>9 granular permissions per user</li>
+        <li>Admin can toggle any permission per user</li>
+        <li>UI elements hidden based on role</li>
+        <li>Backend enforces permissions independently</li>
+      </ul>
+    </div>
+
+    <div class="card red">
+      <div class="card-head">
+        <div class="card-icon">👤</div>
+        <div>
+          <div class="card-title">User Profiles</div>
+          <div class="card-subtitle">Avatar, theme, password</div>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li>Avatar selection (avatar_id)</li>
+        <li>Light / dark theme preference (stored server-side)</li>
+        <li>Change password (current + new required)</li>
+        <li>Last login timestamp tracking</li>
+      </ul>
+      <div class="api-tag" style="background:rgba(255,107,107,0.06);border-color:rgba(255,107,107,0.2);color:var(--accent4)">POST /api/auth/avatar · /api/auth/theme · /api/auth/change_password</div>
+    </div>
+
+    <div class="card red">
+      <div class="card-head">
+        <div class="card-icon">⚙️</div>
+        <div>
+          <div class="card-title">Admin User CRUD</div>
+          <div class="card-subtitle">Manage dashboard_users.json</div>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li>List all users with roles and last login</li>
+        <li>Create new user (admin only)</li>
+        <li>Update user (role, name, permissions)</li>
+        <li>Delete user (cannot delete self)</li>
+        <li>Kill all sessions for a user</li>
+      </ul>
+      <div class="api-tag" style="background:rgba(255,107,107,0.06);border-color:rgba(255,107,107,0.2);color:var(--accent4)">GET/POST /api/admin/users · PUT/DELETE /api/admin/users/:u</div>
+    </div>
+  </div>
+
+  <!-- MODULE 6: PERMISSIONS TABLE -->
+  <div style="margin-top:24px;">
+    <div style="font-size:13px;color:var(--muted);margin-bottom:12px;font-family:'Space Mono',monospace;">PERMISSION KEYS</div>
+    <div class="perm-grid">
+      <div class="perm-item">view_overview</div>
+      <div class="perm-item">view_today</div>
+      <div class="perm-item">view_history</div>
+      <div class="perm-item">view_employees</div>
+      <div class="perm-item">view_devices</div>
+      <div class="perm-item">view_own_calendar</div>
+      <div class="perm-item">view_all_calendars</div>
+      <div class="perm-item">export_reports</div>
+      <div class="perm-item">force_refresh</div>
+    </div>
+  </div>
+
+  <!-- MODULE 7: IT HELPDESK (GAS) -->
+  <div class="section-header">
+    <div class="section-icon" style="background:rgba(124,92,252,0.1)">🎫</div>
+    <div>
+      <div class="section-title" style="color:var(--accent2)">IT Helpdesk & Collaboration (Google Apps Script)</div>
+      <div class="section-sub">Cloud backend: tickets, token queue, drive, chat</div>
+    </div>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="feature-grid">
+    <div class="card purple">
+      <div class="card-head">
+        <div class="card-icon">🎫</div>
+        <div>
+          <div class="card-title">Ticketing System</div>
+          <div class="card-subtitle">IT support ticket lifecycle</div>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li>Create ticket: title, description, priority, due date</li>
+        <li>Priority levels: Low / Medium / High</li>
+        <li>Status flow: Open → In Progress → Closed</li>
+        <li>Assign to technician</li>
+        <li>Available in both Flask (/api/tickets) and GAS backends</li>
+      </ul>
+      <div class="api-tag purple">Flask: GET/POST /api/tickets · GAS: getTickets / createTicket / updateTicket</div>
+    </div>
+
+    <div class="card purple">
+      <div class="card-head">
+        <div class="card-icon">🎟️</div>
+        <div>
+          <div class="card-title">Token Queue</div>
+          <div class="card-subtitle">Digital service counter system</div>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li>Multiple service counters (HR, Finance, Medical, etc.)</li>
+        <li>Next / previous / repeat token actions</li>
+        <li>Add, rename, reset, delete counters</li>
+        <li>Visual queue tracking in dashboard</li>
+        <li>Permissions: tokens / tokens.manage</li>
+      </ul>
+      <div class="api-tag purple">GAS: getCounters / nextToken / addCounter / resetCounter</div>
+    </div>
+
+    <div class="card purple">
+      <div class="card-head">
+        <div class="card-icon">💬</div>
+        <div>
+          <div class="card-title">Internal Messaging</div>
+          <div class="card-subtitle">Peer-to-peer staff chat</div>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li>Send messages between dashboard users</li>
+        <li>Unread message counter</li>
+        <li>Mark as read, delete messages</li>
+        <li>Online user presence list</li>
+      </ul>
+      <div class="api-tag purple">GET/POST /api/messages · GET /api/users/online</div>
+    </div>
+
+    <div class="card purple">
+      <div class="card-head">
+        <div class="card-icon">📝</div>
+        <div>
+          <div class="card-title">Sticky Notes</div>
+          <div class="card-subtitle">Private color-coded notes</div>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li>Create personal notes with type/color</li>
+        <li>Persistent per-user storage in SQLite</li>
+        <li>Delete individual notes</li>
+      </ul>
+      <div class="api-tag purple">GET/POST /api/notes · DELETE /api/notes/:id</div>
+    </div>
+
+    <div class="card purple">
+      <div class="card-head">
+        <div class="card-icon">📢</div>
+        <div>
+          <div class="card-title">Announcements</div>
+          <div class="card-subtitle">System-wide broadcast messages</div>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li>Admin posts active announcements</li>
+        <li>Shown to all logged-in users</li>
+        <li>Delete / deactivate announcements</li>
+      </ul>
+      <div class="api-tag purple">GET/POST /api/announcements · DELETE /api/announcements/:id</div>
+    </div>
+
+    <div class="card purple">
+      <div class="card-head">
+        <div class="card-icon">🗂️</div>
+        <div>
+          <div class="card-title">Google Drive Integration</div>
+          <div class="card-subtitle">File browser and uploader</div>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li>List files in designated Drive folder</li>
+        <li>Upload files from browser to Drive</li>
+        <li>Delete files from Drive</li>
+        <li>Storage info (used / total)</li>
+        <li>Permissions: storage</li>
+      </ul>
+      <div class="api-tag purple">GAS: listDriveFiles / uploadDriveFile / deleteDriveFile / getStorageInfo</div>
+    </div>
+  </div>
+
+  <!-- MODULE 8: GAS USER MANAGEMENT -->
+  <div class="section-header">
+    <div class="section-icon" style="background:rgba(124,92,252,0.1)">🧑‍💻</div>
+    <div>
+      <div class="section-title" style="color:var(--accent2)">GAS User & Role Management</div>
+      <div class="section-sub">Cloud-side user admin with Google Sheets backend</div>
+    </div>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="feature-grid dense">
+    <div class="card purple">
+      <div class="card-head"><div class="card-icon">👥</div><div><div class="card-title">User Management</div></div></div>
+      <ul class="feature-list">
+        <li>Add / delete / update user profiles</li>
+        <li>Reset password, update display name, dept, phone</li>
+        <li>Enable / disable accounts</li>
+        <li>Last login tracking</li>
+      </ul>
+      <div class="api-tag purple">GAS: addUser / deleteUser / updateUserProfile / resetPassword</div>
+    </div>
+    <div class="card purple">
+      <div class="card-head"><div class="card-icon">🎭</div><div><div class="card-title">Roles & Permissions</div></div></div>
+      <ul class="feature-list">
+        <li>Custom roles (Admin, Technician, User)</li>
+        <li>8 permission keys per user</li>
+        <li>Add / delete custom roles</li>
+        <li>24-hour JWT-style session tokens via CacheService</li>
+      </ul>
+      <div class="api-tag purple">GAS: getRoles / addRole / deleteRole / updatePermissions</div>
+    </div>
+    <div class="card purple">
+      <div class="card-head"><div class="card-icon">📋</div><div><div class="card-title">Audit Log</div></div></div>
+      <ul class="feature-list">
+        <li>All login, CRUD, and action events logged</li>
+        <li>GAS audit stored in Google Sheets</li>
+        <li>Flask audit in audit_log SQLite table</li>
+      </ul>
+      <div class="api-tag purple">GAS: getAuditLog · Flask: GET /api/audit</div>
+    </div>
+  </div>
+
+  <!-- MODULE 9: DATABASE & SETTINGS -->
+  <div class="section-header">
+    <div class="section-icon" style="background:rgba(255,201,74,0.1)">🗄️</div>
+    <div>
+      <div class="section-title" style="color:var(--accent5)">Database & System Settings</div>
+      <div class="section-sub">SQLite admin, backup, and global configuration</div>
+    </div>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="feature-grid">
+    <div class="card yellow">
+      <div class="card-head">
+        <div class="card-icon">🗃️</div>
+        <div>
+          <div class="card-title">Database Admin</div>
+          <div class="card-subtitle">SQLite management from dashboard</div>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li>DB status: table row counts, file size</li>
+        <li>Run arbitrary SQL (admin only)</li>
+        <li>Download database backup (.db file)</li>
+        <li>Local backup with timestamp filename</li>
+        <li>Punch count stats</li>
+      </ul>
+      <div class="api-tag" style="background:rgba(255,201,74,0.06);border-color:rgba(255,201,74,0.2);color:var(--accent5)">GET /api/db/status · POST /api/sql · GET /api/db/backup</div>
+    </div>
+
+    <div class="card yellow">
+      <div class="card-head">
+        <div class="card-icon">⚙️</div>
+        <div>
+          <div class="card-title">System Settings</div>
+          <div class="card-subtitle">Global config via settings.ini</div>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li>Device IPs list (editable live)</li>
+        <li>Device port and timeout</li>
+        <li>Cache refresh interval</li>
+        <li>Excluded / collapsed departments</li>
+        <li>Session lifetime and inactivity timeouts</li>
+        <li>Auto-sync schedule configuration</li>
+      </ul>
+      <div class="api-tag" style="background:rgba(255,201,74,0.06);border-color:rgba(255,201,74,0.2);color:var(--accent5)">GET/POST /api/settings/system · /api/settings/auto-sync</div>
+    </div>
+
+    <div class="card yellow">
+      <div class="card-head">
+        <div class="card-icon">📧</div>
+        <div>
+          <div class="card-title">Email Settings</div>
+          <div class="card-subtitle">SMTP config for notifications</div>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li>SMTP server, port, auth credentials</li>
+        <li>Test email send</li>
+        <li>Used for report delivery and alerts</li>
+      </ul>
+      <div class="api-tag" style="background:rgba(255,201,74,0.06);border-color:rgba(255,201,74,0.2);color:var(--accent5)">GET/POST /api/settings/email · POST /api/settings/email/test</div>
+    </div>
+  </div>
+
+  <!-- MODULE 10: IT TOOLKIT -->
+  <div class="section-header">
+    <div class="section-icon" style="background:rgba(0,229,160,0.1)">🧰</div>
+    <div>
+      <div class="section-title" style="color:var(--accent3)">Built-in IT Toolkit</div>
+      <div class="section-sub">Client-side utilities — no backend required</div>
+    </div>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="feature-grid dense">
+    <div class="card green">
+      <div class="card-head"><div class="card-icon">📧</div><div><div class="card-title">Email Batch Manager</div></div></div>
+      <ul class="feature-list">
+        <li>Parse .xlsx, extract emails</li>
+        <li>Deduplicate email list</li>
+        <li>Batch copy for mass communication</li>
+      </ul>
+    </div>
+    <div class="card green">
+      <div class="card-head"><div class="card-icon">📦</div><div><div class="card-title">PDF Tools</div></div></div>
+      <ul class="feature-list">
+        <li>Merge multiple PDFs</li>
+        <li>Split PDF pages</li>
+        <li>Compress and watermark</li>
+        <li>Uses pdf-lib (100% browser-side)</li>
+      </ul>
+    </div>
+    <div class="card green">
+      <div class="card-head"><div class="card-icon">🔲</div><div><div class="card-title">Generators</div></div></div>
+      <ul class="feature-list">
+        <li>QR code generator (qrcode.js)</li>
+        <li>Code128 barcode (JsBarcode)</li>
+        <li>Secure password generator</li>
+      </ul>
+    </div>
+    <div class="card green">
+      <div class="card-head"><div class="card-icon">🌐</div><div><div class="card-title">Network Tools</div></div></div>
+      <ul class="feature-list">
+        <li>IP / DNS Lookup</li>
+        <li>Subnet Calculator</li>
+        <li>MAC Vendor Lookup</li>
+        <li>Live Ping Monitor (Chart.js canvas)</li>
+      </ul>
+    </div>
+    <div class="card green">
+      <div class="card-head"><div class="card-icon">🔄</div><div><div class="card-title">Data Converters</div></div></div>
+      <ul class="feature-list">
+        <li>Base64 encode / decode</li>
+        <li>Hex / Dec / Bin converter</li>
+        <li>Text diff checker</li>
+      </ul>
+    </div>
+    <div class="card green">
+      <div class="card-head"><div class="card-icon">💻</div><div><div class="card-title">Linode Terminal</div></div></div>
+      <ul class="feature-list">
+        <li>Embedded web shell via ttyd</li>
+        <li>Proxied through nginx</li>
+        <li>Full server access from dashboard</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- MODULE 11: PWA & OFFLINE -->
+  <div class="section-header">
+    <div class="section-icon" style="background:rgba(0,200,255,0.1)">📱</div>
+    <div>
+      <div class="section-title" style="color:var(--accent)">PWA & Offline Capabilities</div>
+      <div class="section-sub">Service worker, IndexedDB, installable app</div>
+    </div>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="feature-grid">
+    <div class="card blue">
+      <div class="card-head"><div class="card-icon">📲</div><div><div class="card-title">Progressive Web App</div></div></div>
+      <ul class="feature-list">
+        <li>manifest.json — installable on desktop/mobile</li>
+        <li>Standalone display mode (no browser chrome)</li>
+        <li>Theme color #00c8ff, dark background #12141c</li>
+        <li>SVG icon embedded in manifest</li>
+      </ul>
+    </div>
+    <div class="card blue">
+      <div class="card-head"><div class="card-icon">⚡</div><div><div class="card-title">Service Worker (sw.js)</div></div></div>
+      <ul class="feature-list">
+        <li>Caches dashboard.html and manifest.json</li>
+        <li>Cache-first strategy for GET requests</li>
+        <li>Skips /api/ routes (always live)</li>
+        <li>Offline HTML fallback</li>
+        <li>Old cache version cleanup on activate</li>
+      </ul>
+    </div>
+    <div class="card blue">
+      <div class="card-head"><div class="card-icon">🗃️</div><div><div class="card-title">Offline Punch Cache</div></div></div>
+      <ul class="feature-list">
+        <li>Punches saved to IndexedDB when offline</li>
+        <li>Auto-sync to server on reconnect</li>
+        <li>Settings persisted in localStorage</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- API ROUTE TABLE -->
+  <div class="section-header">
+    <div class="section-icon" style="background:rgba(0,200,255,0.1)">🔌</div>
+    <div>
+      <div class="section-title" style="color:var(--accent)">Flask API — Key Endpoints</div>
+      <div class="section-sub">Selected routes from server.py (70+ total)</div>
+    </div>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="route-table">
+    <table>
+      <thead>
+        <tr>
+          <th>METHOD</th>
+          <th>ROUTE</th>
+          <th>DESCRIPTION</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="method GET">GET</span></td><td class="route-path">/api/today</td><td>Today's punch summary (present/absent)</td></tr>
+        <tr><td><span class="method GET">GET</span></td><td class="route-path">/api/history</td><td>Date-range attendance report</td></tr>
+        <tr><td><span class="method GET">GET</span></td><td class="route-path">/api/employees</td><td>List all employees with dept grouping</td></tr>
+        <tr><td><span class="method POST">POST</span></td><td class="route-path">/api/employees/add</td><td>Add new employee record</td></tr>
+        <tr><td><span class="method PUT">PUT</span></td><td class="route-path">/api/employee/:badge</td><td>Edit employee name / dept / active</td></tr>
+        <tr><td><span class="method GET">GET</span></td><td class="route-path">/api/employee/:badge/report</td><td>Full punch calendar for employee</td></tr>
+        <tr><td><span class="method GET">GET</span></td><td class="route-path">/api/employee/:badge/monthly-summary</td><td>Monthly attendance stats</td></tr>
+        <tr><td><span class="method GET">GET</span></td><td class="route-path">/api/devices/status</td><td>Ping all ZKTeco devices</td></tr>
+        <tr><td><span class="method POST">POST</span></td><td class="route-path">/api/device/:ip/sync-clock</td><td>Sync device clock to server time</td></tr>
+        <tr><td><span class="method POST">POST</span></td><td class="route-path">/api/device/:ip/reboot</td><td>Reboot ZKTeco terminal</td></tr>
+        <tr><td><span class="method GET">GET</span></td><td class="route-path">/api/device/:ip/download/users</td><td>Download enrolled users from device</td></tr>
+        <tr><td><span class="method POST">POST</span></td><td class="route-path">/api/auth/login</td><td>Authenticate, start Flask session</td></tr>
+        <tr><td><span class="method POST">POST</span></td><td class="route-path">/api/auth/change_password</td><td>Change own password</td></tr>
+        <tr><td><span class="method GET">GET</span></td><td class="route-path">/api/admin/users</td><td>List all dashboard users (admin)</td></tr>
+        <tr><td><span class="method DELETE">DELETE</span></td><td class="route-path">/api/admin/users/:u</td><td>Delete dashboard user (admin)</td></tr>
+        <tr><td><span class="method POST">POST</span></td><td class="route-path">/api/punch/self</td><td>Employee self punch-in/out</td></tr>
+        <tr><td><span class="method POST">POST</span></td><td class="route-path">/api/punch/admin/approve/:id</td><td>Admin approve punch request</td></tr>
+        <tr><td><span class="method GET">GET</span></td><td class="route-path">/api/holidays</td><td>List all holidays/exceptions</td></tr>
+        <tr><td><span class="method POST">POST</span></td><td class="route-path">/api/holidays</td><td>Add holiday (date range, scope)</td></tr>
+        <tr><td><span class="method GET">GET</span></td><td class="route-path">/api/shifts</td><td>Get dept shift times and grace periods</td></tr>
+        <tr><td><span class="method GET">GET</span></td><td class="route-path">/api/workdays/dept</td><td>Get per-dept workday masks</td></tr>
+        <tr><td><span class="method GET">GET</span></td><td class="route-path">/api/audit</td><td>Audit log (last 200 entries)</td></tr>
+        <tr><td><span class="method GET">GET</span></td><td class="route-path">/api/db/status</td><td>SQLite stats (row counts, file size)</td></tr>
+        <tr><td><span class="method POST">POST</span></td><td class="route-path">/api/sql</td><td>Run raw SQL (admin only)</td></tr>
+        <tr><td><span class="method GET">GET</span></td><td class="route-path">/api/db/backup</td><td>Download attendance.db backup</td></tr>
+        <tr><td><span class="method POST">POST</span></td><td class="route-path">/api/db/import-mdb</td><td>Import from Access MDB file</td></tr>
+        <tr><td><span class="method GET">GET</span></td><td class="route-path">/api/tickets</td><td>List IT helpdesk tickets</td></tr>
+        <tr><td><span class="method POST">POST</span></td><td class="route-path">/api/tickets</td><td>Create new helpdesk ticket</td></tr>
+        <tr><td><span class="method PATCH">PATCH</span></td><td class="route-path">/api/tickets/:id</td><td>Update ticket status / assignment</td></tr>
+        <tr><td><span class="method GET">GET</span></td><td class="route-path">/api/messages</td><td>Get inbox messages for current user</td></tr>
+        <tr><td><span class="method POST">POST</span></td><td class="route-path">/api/messages</td><td>Send message to another user</td></tr>
+        <tr><td><span class="method GET">GET</span></td><td class="route-path">/api/refresh/stream</td><td>SSE stream for live data push</td></tr>
+        <tr><td><span class="method GET">GET</span></td><td class="route-path">/api/sessions</td><td>List active sessions (admin)</td></tr>
+        <tr><td><span class="method DELETE">DELETE</span></td><td class="route-path">/api/sessions/:sid</td><td>Kill a specific session (admin)</td></tr>
+        <tr><td><span class="method GET">GET</span></td><td class="route-path">/api/today/absent-text</td><td>Plain-text absent list for WhatsApp/email</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- LAUNCHER -->
+  <div class="section-header">
+    <div class="section-icon" style="background:rgba(0,229,160,0.1)">🚀</div>
+    <div>
+      <div class="section-title" style="color:var(--accent3)">Launcher & Deployment</div>
+      <div class="section-sub">Cross-platform startup scripts and systemd service</div>
+    </div>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="feature-grid">
+    <div class="card green">
+      <div class="card-head"><div class="card-icon">🪟</div><div><div class="card-title">Windows Launcher (attendance.bat)</div></div></div>
+      <ul class="feature-list">
+        <li>Interactive menu (9 options)</li>
+        <li>Auto-detects local IP for dashboard URL</li>
+        <li>Full sync, device-only sync, employee export</li>
+        <li>Today / history absent report generation</li>
+        <li>MDB scan diagnostics</li>
+        <li>Database backup</li>
+        <li>First-time setup (pip install)</li>
+      </ul>
+    </div>
+    <div class="card green">
+      <div class="card-head"><div class="card-icon">🐧</div><div><div class="card-title">Linux Launcher (attendance.sh)</div></div></div>
+      <ul class="feature-list">
+        <li>Same 9 options as Windows launcher</li>
+        <li>Venv auto-activation if present</li>
+        <li>Install as systemd service (auto-start on boot)</li>
+        <li>Remove systemd service</li>
+        <li>Browser auto-open via xdg-open</li>
+      </ul>
+    </div>
+    <div class="card green">
+      <div class="card-head"><div class="card-icon">📦</div><div><div class="card-title">Install Script (install.sh)</div></div></div>
+      <ul class="feature-list">
+        <li>apt-get: python3, pip, venv, sqlite3, mdbtools</li>
+        <li>pip: flask, pandas, openpyxl, pyzk, werkzeug, reportlab</li>
+        <li>Verification of all installed packages</li>
+        <li>Auto MDB employee export if .mdb found</li>
+        <li>Device sync on completion</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- DEMO MODE -->
+  <div class="section-header">
+    <div class="section-icon" style="background:rgba(255,201,74,0.1)">🎮</div>
+    <div>
+      <div class="section-title" style="color:var(--accent5)">Demo Mode</div>
+      <div class="section-sub">Explore without any backend connected</div>
+    </div>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="feature-grid">
+    <div class="card yellow">
+      <div class="card-head"><div class="card-icon">🎭</div><div><div class="card-title">Demo Mode</div></div></div>
+      <ul class="feature-list">
+        <li>Activated from login screen: "🎮 Enter Demo Mode"</li>
+        <li>Populates mock employees, tickets, devices, attendance</li>
+        <li>All UI modules explorable without Flask or GAS</li>
+        <li>Ideal for onboarding and stakeholder demos</li>
+      </ul>
+    </div>
+  </div>
+
+  <footer>
+    ERP Console Feature Map &nbsp;·&nbsp; v2.2 &nbsp;·&nbsp; Flask + GAS + ZKTeco &nbsp;·&nbsp; Generated 2026
+  </footer>
+</div>
+</body>
+</html>
