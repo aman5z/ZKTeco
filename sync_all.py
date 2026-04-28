@@ -69,10 +69,13 @@ def setup_logging(level_name: Optional[str], config: dict):
     )
 
 
-def parse_date(d: Optional[str]) -> Optional[datetime]:
+def parse_date(d: Optional[str], end_of_day: bool = False) -> Optional[datetime]:
     if not d:
         return None
-    return datetime.strptime(d, "%Y-%m-%d")
+    dt = datetime.strptime(d, "%Y-%m-%d")
+    if end_of_day:
+        return dt.replace(hour=23, minute=59, second=59)
+    return dt
 
 
 def in_range(ts: datetime, start: Optional[datetime], end: Optional[datetime]) -> bool:
@@ -180,7 +183,7 @@ def main():
             return
 
     start_dt = parse_date(args.from_date)
-    end_dt = parse_date(args.to_date)
+    end_dt = parse_date(args.to_date, end_of_day=True)
     chunk_size = max(1, args.chunk)
 
     total_pushed = 0
