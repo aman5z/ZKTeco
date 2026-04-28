@@ -1,6 +1,6 @@
 const CACHE_NAME = 'erp-cache-v1';
 const ASSETS = [
-  '/dashboard.html',
+  '/d.html',
   '/manifest.json'
 ];
 
@@ -38,7 +38,7 @@ self.addEventListener('fetch', event => {
       // Fallback for HTML pages when offline
       const accept = event.request.headers.get('accept');
       if (accept && accept.includes('text/html')) {
-        return caches.match('/dashboard.html');
+        return caches.match('/d.html');
       }
       throw err;
     })

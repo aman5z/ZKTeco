@@ -70,14 +70,12 @@ after_action() {
 # ── Actions ───────────────────────────────────────────────────
 
 do_dashboard() {
-    local IP
-    IP=$(get_ip)
     echo "  Starting server..."
-    echo "  URL : http://${IP}:5000"
+    echo "  URL : http://localhost:5000/d"
     echo "  Keep this window open. Ctrl+C to stop."
     echo "  ============================================================"
     # Open browser in background (best-effort — may not work on headless servers)
-    (sleep 3 && xdg-open "http://${IP}:5000" 2>/dev/null || true) &
+    (sleep 3 && xdg-open "http://localhost:5000/d" 2>/dev/null || true) &
     $PYTHON server.py
     after_action
 }

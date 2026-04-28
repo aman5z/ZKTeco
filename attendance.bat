@@ -51,19 +51,10 @@ echo  Invalid choice. & timeout /t 1 /nobreak >nul & goto MENU
 cls
 echo.
 echo  Starting server...
-set "DASH_IP=127.0.0.1"
-for /f "tokens=2 delims=:" %%I in ('ipconfig 2^>nul ^| findstr /i "IPv4"') do (
-    set "RAW=%%I" & set "RAW=!RAW: =!"
-    if not defined GOT_IP (
-        echo !RAW! | findstr /b "10\." >nul 2>&1 && set "DASH_IP=!RAW!" && set "GOT_IP=1"
-        echo !RAW! | findstr /b "192\." >nul 2>&1 && set "DASH_IP=!RAW!" && set "GOT_IP=1"
-        echo !RAW! | findstr /b "172\." >nul 2>&1 && set "DASH_IP=!RAW!" && set "GOT_IP=1"
-    )
-)
-echo  URL : http://%DASH_IP%:5000
+echo  URL : http://127.0.0.1:5000/d
 echo  Keep this window open. Ctrl+C to stop.
 echo  ============================================================
-start /b cmd /c "timeout /t 6 /nobreak >nul 2>&1 & start http://%DASH_IP%:5000"
+start /b cmd /c "timeout /t 6 /nobreak >nul 2>&1 & start http://127.0.0.1:5000/d"
 python server.py
 popd & pause & goto MENU
 

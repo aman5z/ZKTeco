@@ -2362,6 +2362,11 @@ def dashboard_html():
 def dashboard_d():
     return send_from_directory(SCRIPT_DIR, "d.html")
 
+@app.route("/dashboard")
+@app.route("/dashboard.html")
+def dashboard_alias():
+    return send_from_directory(SCRIPT_DIR, "d.html")
+
 @app.route("/zk")
 def zk_page():
     return send_from_directory(SCRIPT_DIR, "zk.html")
@@ -5194,8 +5199,8 @@ if __name__ == "__main__":
     print("\n" + "="*58)
     print("  ZKTeco Attendance Dashboard  v2.1")
     print("  Folder        : {0}".format(SCRIPT_DIR))
-    print("  Open browser  -> http://{0}:5000".format(local_ip))
-    print("  Also works    -> http://127.0.0.1:5000")
+    print("  Open browser  -> http://localhost:5000/d")
+    print("  Also works    -> http://127.0.0.1:5000/d")
     print("  Default login -> admin / {0}".format(DEFAULT_ADMIN_PASSWORD))
     print("="*58 + "\n")
     start_background_refresh()
