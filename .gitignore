@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+.env
+*.egg-info/
+dist/
+build/
+
+# Logs
+logs/
+*.log
+log.txt
+
+# Database
+attendance.db
+attendance.db-wal
+attendance.db-shm
+*.db-backup
+
+# Sensitive / generated data files
+dashboard_users.json
+employees_export.csv
+employees_export.xlsx
+.flask_secret
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Windows shortcut
+*.lnk
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo

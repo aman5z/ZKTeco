@@ -1,162 +1,147 @@
-# Real-Time Attendance Logger
+# ZKTeco Attendance System
 
-This project captures real-time attendance logs from ZK devices and pushes the data to a server. It also fetches and processes end-of-day attendance logs. The configuration is managed using a JSON file.
+A full attendance management solution for ZKTeco biometric devices. It includes a real-time logger that streams punch events to an API, a web dashboard for viewing attendance and reports, bulk sync utilities, and Telegram notifications.
+
+---
+
+## Components
+
+| File | Purpose |
+|------|---------|
+| `main.py` | Real-time attendance logger — streams live punch events from all devices to the API endpoint |
+| `server.py` | Flask web dashboard — view today's/historical attendance, employee list, reports, device management |
+| `sync_all.py` | Bulk sync CLI — pull all logs from devices and push to API (supports date range filtering) |
+| `sync_db.py` | Database sync CLI — imports employees from MDB, pulls device logs into local SQLite |
+| `boot_sync_60d.py` | Startup sync — syncs the last 60 days of logs on system boot via `sync_all.py` |
+| `mdb_tools.py` | MDB/Access tools — export employees, generate absent reports from MDB backup |
+| `telegram_notifier.py` | Telegram bot helper — sends system status notifications |
 
 ---
 
 ## Features
 
-- Captures real-time attendance logs from multiple devices.
-- Pushes logs to a server endpoint in JSON format.
-- Fetches end-of-day attendance logs.
-- Automatically reconnects to devices every 15 minutes to ensure data capture.
-- Configurable via `config.json`.
+- Live real-time capture from multiple ZKTeco devices (self-healing reconnect)
+- Buffered push to API endpoint with configurable batch size
+- Web dashboard with login, role-based access, department view, calendar, reports
+- Export absent reports to Excel/PDF
+- Telegram notifications for startup, data push, errors
+- Windows (`.bat`) and Linux (`.sh`) launchers with interactive menu
+- Systemd service installer for auto-start on boot (Linux)
+- Docker support
 
 ---
 
 ## Requirements
 
-- **Python**: Version 3.8 or later
-- **ZK SDK**: For device communication (`zk-python`)
-- **Additional Libraries**: Listed in `requirements.txt`
+- **Python** 3.8 or later
+- Dependencies listed in `requirements.txt`
+- Linux dashboard: `mdbtools` system package (for MDB file reading)
 
 ---
 
-## Installation
+## Quick Start
 
-### Step 1: Clone the Repository
+### Linux
 
 ```bash
-git clone https://github.com/yourusername/attendance-logger.git
-cd attendance-logger
+bash install.sh       # installs packages, exports employees, syncs devices
+bash attendance.sh    # interactive menu
 ```
 
-### Step 2: Set Up a Virtual Environment
+### Windows
 
-Create and activate a virtual environment to isolate the dependencies for this project.
+```bat
+attendance.bat        # interactive menu
+```
 
-#### On Linux / macOS:
+### Manual
 
 ```bash
 python3 -m venv venv
-source venv/bin/activate
-```
+source venv/bin/activate        # Linux/macOS
+# venv\Scripts\activate         # Windows
 
-#### On Windows:
-
-```bash
-python -m venv venv
-venv\Scripts\activate
-```
-
-### Step 3: Install Dependencies
-
-Install all required Python libraries:
-
-```bash
 pip install -r requirements.txt
+
+# Real-time logger (pushes live events to API)
+python main.py
+
+# Web dashboard
+python server.py      # open http://localhost:5000
 ```
 
-### Step 4: Configure `config.json`
+---
 
-Create the `config.json` file in the project root directory using the following sample:
+## Configuration
 
-#### Sample `config.json`
+### `config.json` — Real-time logger & boot sync
 
 ```json
 {
+  "name": "Your-System-Name",
   "log_level": "INFO",
-  "endpoint": "https://example.com/erp-api/sync/empAttSync.php",
-  "buffer_limit": 3,
+  "endpoint": "https://your-domain.example.com/erp-api/sync/empAttSync.php",
+  "buffer_limit": 10,
   "devices": [
-    { "device_id": 1, "ip_address": "10.30.141.3", "port": 4370 },
-    { "device_id": 2, "ip_address": "10.30.141.4", "port": 4370 },
-    { "device_id": 3, "ip_address": "10.30.141.5", "port": 4370 }
-  ]
+    { "device_id": 1, "ip_address": "10.20.141.21", "port": 4370 },
+    { "device_id": 2, "ip_address": "10.20.141.22", "port": 4370 }
+  ],
+  "telegram": {
+    "bot_token": "YOUR_TELEGRAM_BOT_TOKEN",
+    "chat_id": "YOUR_TELEGRAM_CHAT_ID",
+    "enabled": false,
+    "notifications": {
+      "startup": true,
+      "end_of_day": true,
+      "data_push": true,
+      "errors": true,
+      "device_status": true
+    }
+  }
 }
 ```
 
-#### Configuration Details:
+### `settings.ini` — Web dashboard
 
-- **`log_level`**: Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`).
-- **`endpoint`**: Server API endpoint for syncing attendance data.
-- **`buffer_limit`**: Number of logs to collect before pushing to the server.
-- **`devices`**: List of devices with:
-  - `device_id`: Unique identifier for the device.
-  - `ip_address`: IP address of the device.
-  - `port`: Port for communication (default is `4370`).
+Edit `settings.ini` to configure device IPs, departments, session timeouts, and the dashboard port.
 
 ---
 
-## Usage
+## Utilities
 
-### Running the Script
+```bash
+# Sync all logs for a date range
+python sync_all.py --from 2026-01-01 --to 2026-04-01
 
-1. Activate the virtual environment:
+# Sync a specific device only
+python sync_all.py --device-id 2
 
-   ```bash
-   source venv/bin/activate       # On Linux/macOS
-   venv\Scripts\activate        # On Windows
-   ```
+# Import employees + pull device logs into local DB
+python sync_db.py
 
-2. Run the script:
-   ```bash
-   python main.py
-   ```
+# Export employee list from MDB
+python mdb_tools.py export
 
----
-
-## Logs
-
-Logs are printed to the console with timestamps and log levels. Example:
-
-```
-2025-01-22 13:45:23 - INFO - Connecting to device 1...
-2025-01-22 13:45:30 - INFO - Captured log: {'device_id': 1, 'user_id': 123, 'timestamp': '2025-01-22 13:45:30', 'status': 1, 'punch': 1}
-2025-01-22 13:46:00 - INFO - Pushing 3 records to the server.
+# Generate today's absent report
+python mdb_tools.py today
 ```
 
 ---
 
-## Features in Detail
+## Docker
 
-### Real-Time Log Capture
-
-- Real-time logs are captured and stored in a shared buffer.
-- Logs are pushed to the server when the buffer reaches the `buffer_limit`.
-
-### End-of-Day Task
-
-- The script fetches logs for the current day at the end of the day (`23:59`).
-- Ensures all attendance data is pushed before the next day starts.
-
-### Reconnection Mechanism
-
-- Devices are reconnected every 15 minutes to handle disconnections.
-- This ensures continuous data collection without manual intervention.
-
----
-
-## Development and Testing
-
-### Running Tests
-
-Write and run unit tests for the script using the `unittest` module or your preferred testing framework.
-
-### Modifying Configuration
-
-Update the `config.json` file to:
-
-- Add new devices.
-- Change the endpoint URL.
-- Adjust the buffer limit or logging level.
+```bash
+docker build -t zkteco-attendance .
+docker run --network host zkteco-attendance
+```
 
 ---
 
 ## License
 
-This project is licensed under the MIT License. See the `LICENSE` file for details.
+This project is licensed under the MIT License.
 
 ---
 
-**Author:** [Hashiq V H]
+**Author:** Hashiq V H
+

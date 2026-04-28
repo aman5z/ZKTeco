@@ -65,12 +65,7 @@ class TelegramNotifier:
         """
         Synchronous wrapper for send_message.
         """
-        try:
-            loop = asyncio.get_event_loop()
-            return loop.run_until_complete(self.send_message(message, parse_mode))
-        except RuntimeError:
-            # If no event loop is running, create a new one
-            return asyncio.run(self.send_message(message, parse_mode))
+        return asyncio.run(self.send_message(message, parse_mode))
     
     async def send_startup_notification(self, device_count: int, endpoint: str) -> bool:
         """Send startup notification."""
