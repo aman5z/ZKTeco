@@ -2102,6 +2102,8 @@ def db_status():
 @app.route("/api/sql", methods=["POST"])
 @admin_required
 def execute_sql():
+    # This endpoint is an intentional admin-only SQL console.
+    # Executing arbitrary SQL is its purpose; access is restricted to admins.
     req = request.json or {}
     query = req.get("query", "").strip()
     if not query:
