@@ -1,0 +1,476 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Staff Counter View</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f0f2f7;
+    --surface: #ffffff;
+    --border: #e2e5ee;
+    --accent: #2563eb;
+    --accent-light: #eff6ff;
+    --success: #059669;
+    --success-light: #ecfdf5;
+    --warn: #d97706;
+    --warn-light: #fffbeb;
+    --danger: #dc2626;
+    --danger-light: #fef2f2;
+    --text: #111827;
+    --muted: #6b7280;
+    --priority: #7c3aed;
+    --priority-light: #f5f3ff;
+    --radius: 12px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.06);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); font-family: 'DM Sans', sans-serif; color: var(--text); min-height: 100vh; }
+
+  /* ── LOGIN ── */
+  #loginScreen {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px;
+    background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 50%, #2563eb 100%);
+  }
+  .login-card {
+    background: #fff; border-radius: 20px; padding: 40px 36px;
+    width: 100%; max-width: 400px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  }
+  .login-icon { font-size: 40px; margin-bottom: 16px; }
+  .login-title { font-size: 24px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+  .login-sub { font-size: 14px; color: var(--muted); margin-bottom: 28px; }
+  .lfield { margin-bottom: 16px; }
+  .lfield label { display: block; font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+  .lfield input {
+    width: 100%; padding: 12px 14px;
+    border: 1.5px solid var(--border); border-radius: 10px;
+    font-size: 15px; font-family: 'DM Sans', sans-serif;
+    outline: none; transition: border-color 0.2s;
+  }
+  .lfield input:focus { border-color: var(--accent); }
+  .lfield select {
+    width: 100%; padding: 12px 14px;
+    border: 1.5px solid var(--border); border-radius: 10px;
+    font-size: 15px; background: #fff;
+    font-family: 'DM Sans', sans-serif; outline: none; cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  .lfield select:focus { border-color: var(--accent); }
+  .btn-login {
+    width: 100%; padding: 14px;
+    background: var(--accent); border: none; border-radius: 10px;
+    color: #fff; font-size: 16px; font-weight: 600;
+    font-family: 'DM Sans', sans-serif; cursor: pointer;
+    transition: background 0.2s; margin-top: 4px;
+  }
+  .btn-login:hover { background: #1d4ed8; }
+  .login-err { color: var(--danger); font-size: 13px; margin-top: 10px; text-align: center; display: none; }
+  .login-err.show { display: block; }
+
+  /* ── APP SHELL ── */
+  #appScreen { display: none; }
+  .topbar {
+    background: var(--accent); color: #fff;
+    padding: 14px 24px; display: flex; align-items: center; justify-content: space-between;
+    box-shadow: 0 2px 8px rgba(37,99,235,0.3);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .topbar-left { display: flex; align-items: center; gap: 12px; }
+  .topbar-icon { font-size: 20px; }
+  .topbar-title { font-size: 17px; font-weight: 700; }
+  .topbar-dept { font-size: 12px; opacity: 0.75; font-family: 'DM Mono', monospace; }
+  .topbar-right { display: flex; align-items: center; gap: 12px; }
+  .badge-count {
+    background: rgba(255,255,255,0.2); border-radius: 20px;
+    padding: 4px 12px; font-size: 13px; font-weight: 600;
+    font-family: 'DM Mono', monospace;
+  }
+  .btn-logout {
+    background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 8px; padding: 6px 14px; color: #fff;
+    font-size: 13px; cursor: pointer; font-family: 'DM Sans', sans-serif;
+  }
+
+  .main { padding: 24px; max-width: 900px; margin: 0 auto; }
+
+  /* Current serving */
+  .current-card {
+    background: var(--accent); border-radius: var(--radius);
+    padding: 24px 28px; margin-bottom: 24px; color: #fff;
+    display: flex; align-items: center; justify-content: space-between;
+    box-shadow: 0 4px 20px rgba(37,99,235,0.35);
+    flex-wrap: wrap; gap: 16px;
+  }
+  .current-label { font-size: 12px; opacity: 0.75; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+  .current-token { font-family: 'DM Mono', monospace; font-size: 48px; font-weight: 500; line-height: 1; }
+  .current-name { font-size: 18px; font-weight: 600; margin-top: 6px; }
+  .current-reason { font-size: 13px; opacity: 0.75; margin-top: 3px; }
+  .current-child { font-size: 13px; opacity: 0.8; margin-top: 2px; }
+
+  .action-btns { display: flex; flex-direction: column; gap: 10px; min-width: 180px; }
+  .btn-call {
+    padding: 14px 24px; border: none; border-radius: 10px;
+    font-size: 15px; font-weight: 700; cursor: pointer;
+    font-family: 'DM Sans', sans-serif; transition: transform 0.1s, opacity 0.2s;
+  }
+  .btn-call:active { transform: scale(0.97); }
+  .btn-next { background: #fff; color: var(--accent); }
+  .btn-skip { background: rgba(255,255,255,0.15); color: #fff; border: 1px solid rgba(255,255,255,0.3); }
+  .btn-complete { background: rgba(5,150,105,0.8); color: #fff; }
+
+  .empty-current {
+    background: var(--surface); border: 2px dashed var(--border);
+    border-radius: var(--radius); padding: 32px; text-align: center;
+    margin-bottom: 24px; color: var(--muted);
+  }
+  .empty-current .big { font-size: 36px; margin-bottom: 8px; }
+
+  /* Stats row */
+  .stats-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 24px; }
+  .stat-card {
+    background: var(--surface); border-radius: var(--radius);
+    padding: 16px; text-align: center; border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+  }
+  .stat-num { font-size: 28px; font-weight: 700; font-family: 'DM Mono', monospace; }
+  .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-top: 2px; }
+  .stat-num.waiting { color: var(--warn); }
+  .stat-num.called { color: var(--accent); }
+  .stat-num.done { color: var(--success); }
+
+  /* Queue list */
+  .section-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .section-head h2 { font-size: 15px; font-weight: 700; color: var(--text); }
+  .btn-refresh {
+    padding: 6px 14px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 8px;
+    font-size: 13px; cursor: pointer; color: var(--muted);
+    font-family: 'DM Sans', sans-serif;
+  }
+  .btn-refresh:hover { color: var(--accent); border-color: var(--accent); }
+
+  .queue-list { display: flex; flex-direction: column; gap: 8px; }
+
+  .queue-item {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px 18px;
+    display: flex; align-items: center; gap: 16px;
+    box-shadow: var(--shadow); transition: transform 0.15s;
+    animation: slideIn 0.25s ease;
+  }
+  @keyframes slideIn { from { opacity:0; transform: translateY(-8px); } to { opacity:1; transform:none; } }
+  .queue-item:hover { transform: translateY(-1px); }
+  .queue-item.priority { border-left: 3px solid var(--priority); background: var(--priority-light); }
+  .queue-item.called { opacity: 0.5; }
+  .queue-item.done { opacity: 0.35; }
+
+  .q-token {
+    font-family: 'DM Mono', monospace; font-size: 20px; font-weight: 500;
+    min-width: 64px; color: var(--accent);
+  }
+  .q-priority .q-token { color: var(--priority); }
+  .q-info { flex: 1; }
+  .q-name { font-size: 15px; font-weight: 600; }
+  .q-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .q-status {
+    padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .status-waiting { background: var(--warn-light); color: var(--warn); }
+  .status-called  { background: var(--accent-light); color: var(--accent); }
+  .status-done    { background: var(--success-light); color: var(--success); }
+  .status-skipped { background: #f3f4f6; color: var(--muted); }
+  .status-priority { background: var(--priority-light); color: var(--priority); }
+
+  .q-time { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; min-width: 48px; text-align: right; }
+
+  .empty-queue { text-align: center; padding: 40px; color: var(--muted); }
+
+  /* Loading overlay */
+  .loading { text-align: center; padding: 24px; color: var(--muted); }
+
+  /* Auto-refresh indicator */
+  .refresh-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: #4ade80;
+    display: inline-block; animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+
+  @media (max-width: 600px) {
+    .main { padding: 16px; }
+    .current-card { flex-direction: column; }
+    .action-btns { flex-direction: row; flex-wrap: wrap; }
+    .btn-call { flex: 1; min-width: 120px; }
+    .stats-row { grid-template-columns: repeat(3,1fr); }
+    .stat-num { font-size: 22px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-icon">🖥️</div>
+    <div class="login-title">Staff Counter</div>
+    <div class="login-sub">Sign in to manage your department queue</div>
+
+    <div class="lfield">
+      <label>Email</label>
+      <input type="email" id="loginEmail" placeholder="your@email.com" autocomplete="username">
+    </div>
+    <div class="lfield">
+      <label>Password</label>
+      <input type="password" id="loginPass" placeholder="••••••••" autocomplete="current-password"
+        onkeydown="if(event.key==='Enter') doLogin()">
+    </div>
+    <div class="lfield">
+      <label>Your Department</label>
+      <select id="loginDept">
+        <option value="">-- Select Department --</option>
+        <option value="REG">Registrar</option>
+        <option value="TRP">Transport</option>
+        <option value="TC">TC Incharge</option>
+        <option value="AD">Asst Director</option>
+        <option value="FIN">Finance</option>
+      </select>
+    </div>
+    <button class="btn-login" onclick="doLogin()">Sign In →</button>
+    <div class="login-err" id="loginErr"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="appScreen">
+  <div class="topbar">
+    <div class="topbar-left">
+      <span class="topbar-icon">🖥️</span>
+      <div>
+        <div class="topbar-title" id="tbTitle">Counter</div>
+        <div class="topbar-dept" id="tbDept"></div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <span class="refresh-dot"></span>
+      <span class="badge-count" id="tbCount">0 waiting</span>
+      <button class="btn-logout" onclick="doLogout()">Logout</button>
+    </div>
+  </div>
+
+  <div class="main">
+
+    <!-- Stats -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-num waiting" id="statWaiting">0</div>
+        <div class="stat-label">Waiting</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num called" id="statCalled">0</div>
+        <div class="stat-label">Called</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num done" id="statDone">0</div>
+        <div class="stat-label">Done Today</div>
+      </div>
+    </div>
+
+    <!-- Currently serving -->
+    <div id="currentSection"></div>
+
+    <!-- Queue -->
+    <div class="section-head">
+      <h2>Waiting Queue</h2>
+      <button class="btn-refresh" onclick="loadQueue()">↻ Refresh</button>
+    </div>
+    <div class="queue-list" id="queueList">
+      <div class="loading">Loading queue...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const GAS_URL = 'https://script.google.com/macros/s/AKfycbyxhqVi3BPh_ksWRJ5n9TWLGBK8HbEhxqqwqV4Bfft7VJJlGxRWI9PPS4Zhw_aKN1TOQQ/exec';
+
+  const DEPT_NAMES = {
+    REG:'Registrar', TRP:'Transport', TC:'TC Incharge', AD:'Asst Director', FIN:'Finance'
+  };
+
+  let token = null, dept = null, currentToken = null, refreshTimer = null;
+
+  async function doLogin() {
+    const email = document.getElementById('loginEmail').value.trim();
+    const pass  = document.getElementById('loginPass').value;
+    const d     = document.getElementById('loginDept').value;
+
+    if (!email || !pass || !d) {
+      showLoginErr('Please fill all fields');
+      return;
+    }
+
+    try {
+      const res = await fetch(GAS_URL, {
+        method: 'POST',
+        headers: {'Content-Type':'application/x-www-form-urlencoded'},
+        body: new URLSearchParams({action:'login', email, password:pass})
+      });
+      const data = await res.json();
+      if (typeof data === 'string' && data !== 'true') {
+        showLoginErr(data); return;
+      }
+      token = data.token;
+      dept  = d;
+      document.getElementById('loginScreen').style.display = 'none';
+      document.getElementById('appScreen').style.display = 'block';
+      document.getElementById('tbTitle').textContent = DEPT_NAMES[dept] + ' Counter';
+      document.getElementById('tbDept').textContent = data.email + ' · ' + dept;
+      loadQueue();
+      refreshTimer = setInterval(loadQueue, 10000);
+    } catch(err) {
+      showLoginErr('Connection error: ' + err.message);
+    }
+  }
+
+  function showLoginErr(msg) {
+    const el = document.getElementById('loginErr');
+    el.textContent = msg; el.classList.add('show');
+  }
+
+  function doLogout() {
+    clearInterval(refreshTimer);
+    token = null; dept = null; currentToken = null;
+    document.getElementById('loginScreen').style.display = 'flex';
+    document.getElementById('appScreen').style.display = 'none';
+    document.getElementById('loginPass').value = '';
+  }
+
+  async function loadQueue() {
+    try {
+      const res = await fetch(GAS_URL + '?page=queue&dept=' + dept);
+      const data = await res.json();
+      renderQueue(data);
+    } catch(err) {
+      // fallback: try POST
+      try {
+        const res = await fetch(GAS_URL, {
+          method:'POST',
+          headers:{'Content-Type':'application/x-www-form-urlencoded'},
+          body: new URLSearchParams({action:'getQueue', token, dept})
+        });
+        const data = await res.json();
+        renderQueue(Array.isArray(data) ? data : []);
+      } catch(e) {}
+    }
+  }
+
+  function renderQueue(rows) {
+    const today = new Date().toISOString().slice(0,10);
+    // rows: [TokenID, Dept, Prefix, ParentName, AdmNo, Phone, Reason, Status, IssuedAt, CalledAt, WaitMins, ChildInfo]
+    const todayRows = rows.filter(r => r[8] && String(r[8]).startsWith(today));
+
+    const waiting  = todayRows.filter(r => r[7]==='WAITING');
+    const called   = todayRows.filter(r => r[7]==='CALLED');
+    const done     = todayRows.filter(r => r[7]==='DONE');
+    const priority = todayRows.filter(r => r[7]==='PRIORITY');
+
+    const allWaiting = [...priority, ...waiting];
+
+    document.getElementById('statWaiting').textContent = allWaiting.length;
+    document.getElementById('statCalled').textContent  = called.length;
+    document.getElementById('statDone').textContent    = done.length;
+    document.getElementById('tbCount').textContent     = allWaiting.length + ' waiting';
+
+    // Current (most recently CALLED)
+    const cur = called.length ? called[called.length-1] : null;
+    const curSection = document.getElementById('currentSection');
+    if (cur) {
+      currentToken = cur[0];
+      curSection.innerHTML = `
+        <div class="current-card">
+          <div>
+            <div class="current-label">Now Serving</div>
+            <div class="current-token">${cur[0]}</div>
+            <div class="current-name">${cur[3] || 'Walk-in'}</div>
+            ${cur[11] ? `<div class="current-child">👦 ${cur[11]}</div>` : ''}
+            ${cur[6]  ? `<div class="current-reason">📝 ${cur[6]}</div>` : ''}
+          </div>
+          <div class="action-btns">
+            <button class="btn-call btn-next"    onclick="callNext()">▶ Call Next</button>
+            <button class="btn-call btn-complete" onclick="completeToken('${cur[0]}')">✓ Done</button>
+            <button class="btn-call btn-skip"    onclick="skipToken('${cur[0]}')">↷ Skip</button>
+          </div>
+        </div>`;
+    } else {
+      curSection.innerHTML = `
+        <div class="empty-current">
+          <div class="big">🟢</div>
+          <div style="font-weight:600;margin-bottom:4px;">Ready</div>
+          <div style="font-size:13px;">${allWaiting.length > 0 ? `${allWaiting.length} in queue — press Call Next` : 'No one waiting'}</div>
+          ${allWaiting.length > 0 ? `<button class="btn-call btn-next" style="margin-top:16px;padding:12px 24px;border-radius:10px;background:var(--accent);color:#fff;border:none;cursor:pointer;font-family:DM Sans,sans-serif;font-weight:700;" onclick="callNext()">▶ Call Next</button>` : ''}
+        </div>`;
+    }
+
+    // Queue list
+    const list = document.getElementById('queueList');
+    const visible = [...allWaiting, ...todayRows.filter(r => r[7]==='SKIPPED')];
+    if (visible.length === 0) {
+      list.innerHTML = '<div class="empty-queue">✅ Queue is empty</div>';
+      return;
+    }
+    list.innerHTML = visible.map((r, idx) => {
+      const status = r[7] === 'PRIORITY' ? 'priority' : r[7].toLowerCase();
+      const issuedAt = r[8] ? new Date(r[8]) : null;
+      const waitMins = issuedAt ? Math.round((Date.now() - issuedAt)/60000) : '';
+      return `
+        <div class="queue-item ${r[7]==='PRIORITY'?'priority':''} ${r[7]==='SKIPPED'?'done':''}">
+          <div class="q-token">${r[0]}</div>
+          <div class="q-info">
+            <div class="q-name">${r[3] || 'Walk-in'}</div>
+            <div class="q-sub">${r[4]?'Adm: '+r[4]+'  ·  ':''}${r[6]||'—'}</div>
+          </div>
+          <span class="q-status status-${status}">${r[7]}</span>
+          <div class="q-time">${waitMins ? waitMins+'m' : ''}</div>
+        </div>`;
+    }).join('');
+  }
+
+  async function callNext() {
+    try {
+      const res = await fetch(GAS_URL, {
+        method:'POST',
+        headers:{'Content-Type':'application/x-www-form-urlencoded'},
+        body: new URLSearchParams({action:'callNext', token, dept})
+      });
+      const data = await res.json();
+      if (data.error) { alert(data.error); return; }
+      loadQueue();
+    } catch(err) { alert('Error: ' + err.message); }
+  }
+
+  async function completeToken(tid) {
+    await updateTokenStatus(tid, 'DONE');
+  }
+
+  async function skipToken(tid) {
+    await updateTokenStatus(tid, 'SKIPPED');
+  }
+
+  async function updateTokenStatus(tid, status) {
+    try {
+      const res = await fetch(GAS_URL, {
+        method:'POST',
+        headers:{'Content-Type':'application/x-www-form-urlencoded'},
+        body: new URLSearchParams({action:'updateTokenStatus', token, tokenId: tid, status})
+      });
+      loadQueue();
+    } catch(err) { alert('Error: ' + err.message); }
+  }
+</script>
+</body>
+</html>
