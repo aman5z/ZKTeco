@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-boot_sync_30d.py
+boot_sync_60d.py
 Run on system startup: sync the last 60 days of attendance logs
 to the API using sync_all.py logic.
 """

@@ -12,7 +12,7 @@ A full attendance management solution for ZKTeco biometric devices. It includes 
 | `server.py` | Flask web dashboard — view today's/historical attendance, employee list, reports, device management |
 | `sync_all.py` | Bulk sync CLI — pull all logs from devices and push to API (supports date range filtering) |
 | `sync_db.py` | Database sync CLI — imports employees from MDB, pulls device logs into local SQLite |
-| `boot_sync_30d.py` | Startup sync — syncs the last 60 days of logs on system boot via `sync_all.py` |
+| `boot_sync_60d.py` | Startup sync — syncs the last 60 days of logs on system boot via `sync_all.py` |
 | `mdb_tools.py` | MDB/Access tools — export employees, generate absent reports from MDB backup |
 | `telegram_notifier.py` | Telegram bot helper — sends system status notifications |
 
