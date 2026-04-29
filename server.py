@@ -1989,6 +1989,23 @@ def _refresh_cache():
             present_badges_resolved.add(mapped)
         else:
             present_badges_resolved.add(uid)
+    # Supplement with badges already stored in the SQLite punches table for today.
+    # This covers employees whose device UIDs did not match their badge at pull time
+    # but whose data was correctly stored in a previous sync cycle.
+    try:
+        today_str = today.strftime("%Y-%m-%d")
+        db_sup = get_db()
+        sup_rows = db_sup.execute(
+            "SELECT DISTINCT badge FROM punches WHERE punch_time >= ? AND punch_time <= ?",
+            (today_str + " 00:00:00", today_str + " 23:59:59")
+        ).fetchall()
+        db_sup.close()
+        for r in sup_rows:
+            b = str(r["badge"]).strip()
+            if b:
+                present_badges_resolved.add(b)
+    except Exception as e:
+        print("[Cache] DB punch supplement error: {0}".format(e)); sys.stdout.flush()
 
     absent, present, off_today = [], [], []
     for _, emp in emp_df.iterrows():
@@ -2660,33 +2677,38 @@ def employee_report(badge):
                     "early_departure": late_info["early_departure"], "early_mins": late_info["early_mins"],
                 })
         else:
-            # Pull from MDB
-            conn     = connect_mdb()
-            b2u      = get_badge_to_uid_map(conn)
-            uid      = b2u.get(badge)
-            punch_df = _get_checkinout(conn, date_from, date_to, uid=uid)
-            conn.close()
-            punch_df[COL_CHECKTIME] = pd.to_datetime(punch_df[COL_CHECKTIME], errors="coerce")
-            punch_df = punch_df.dropna(subset=[COL_CHECKTIME])
-            punch_df["_date"]    = punch_df[COL_CHECKTIME].dt.date
-            punch_df["_time"]    = punch_df[COL_CHECKTIME].dt.strftime("%H:%M:%S")
-            punch_df["_machine"] = punch_df["sn"].map(
-                lambda s: _device_names.get(_serial_to_ip.get(str(s), ""), _serial_to_ip.get(str(s), str(s))) if s else "N/A"
-            )
+            # Pull from SQLite punches table (populated from device pulls).
+            start_s = date_from.strftime("%Y-%m-%d") + " 00:00:00"
+            end_s   = date_to.strftime("%Y-%m-%d")   + " 23:59:59"
+            db_punch = get_db()
+            punch_rows_emp = db_punch.execute(
+                "SELECT punch_time, device_ip FROM punches "
+                "WHERE badge=? AND punch_time >= ? AND punch_time <= ? ORDER BY punch_time",
+                (badge, start_s, end_s)
+            ).fetchall()
+            db_punch.close()
+            punch_map = {}   # date -> list of {time, machine}
+            for row in punch_rows_emp:
+                try:
+                    dt_obj = datetime.strptime(row["punch_time"], "%Y-%m-%d %H:%M:%S")
+                    punch_map.setdefault(dt_obj.date(), []).append({
+                        "time":    dt_obj.strftime("%H:%M:%S"),
+                        "machine": _device_names.get(row["device_ip"], row["device_ip"] or "N/A"),
+                    })
+                except Exception:
+                    pass
             all_dates = list(pd.date_range(date_from, date_to).date)
             days = []; working_days = 0; present_count = 0; holiday_duty_days = 0
             for d in all_dates:
-                is_work     = _is_working_day(d, badge, emp_dept)
-                day_punches = punch_df[punch_df["_date"] == d]
-                is_present  = len(day_punches) > 0
-                is_holiday_duty = is_present and not is_work  # punched on an off day
+                is_work   = _is_working_day(d, badge, emp_dept)
+                punches   = sorted(punch_map.get(d, []), key=lambda x: x["time"])
+                is_present = len(punches) > 0
+                is_holiday_duty = is_present and not is_work
                 if is_work:
                     working_days += 1
                     if is_present: present_count += 1
                 if is_holiday_duty:
                     holiday_duty_days += 1
-                punches = [{"time": r["_time"], "machine": r.get("_machine","N/A")} for _, r in day_punches.iterrows()]
-                punches.sort(key=lambda x: x["time"])
                 late_info = _check_late_early(punches, emp_dept) if (is_present and is_work) else {"late":False,"early_departure":False,"late_mins":0,"early_mins":0}
                 days.append({
                     "date": d.strftime("%d/%m/%Y"), "date_iso": d.strftime("%Y-%m-%d"),
@@ -2755,25 +2777,32 @@ def employee_monthly_summary(badge):
         emp_name = str(emp_row.iloc[0]["Name"])
         emp_dept = str(emp_row.iloc[0]["DEPTNAME"])
 
-        conn     = connect_mdb()
-        b2u      = get_badge_to_uid_map(conn)
-        uid      = b2u.get(badge)
-        punch_df = _get_checkinout(conn, date_from, date_to, uid=uid)
-        conn.close()
-
-        punch_df[COL_CHECKTIME] = pd.to_datetime(punch_df[COL_CHECKTIME], errors="coerce")
-        punch_df = punch_df.dropna(subset=[COL_CHECKTIME])
-        punch_df["_date"]    = punch_df[COL_CHECKTIME].dt.date
-        punch_df["_time"]    = punch_df[COL_CHECKTIME].dt.strftime("%H:%M:%S")
+        # Load punch data from SQLite punches table (populated from device pulls).
+        start_s = date_from.strftime("%Y-%m-%d") + " 00:00:00"
+        end_s   = date_to.strftime("%Y-%m-%d")   + " 23:59:59"
+        db_punch = get_db()
+        punch_rows_mo = db_punch.execute(
+            "SELECT punch_time FROM punches WHERE badge=? AND punch_time >= ? AND punch_time <= ? ORDER BY punch_time",
+            (badge, start_s, end_s)
+        ).fetchall()
+        db_punch.close()
+        # Build date → list of punch times
+        day_punch_times = {}   # date obj -> list of "HH:MM:SS"
+        for row in punch_rows_mo:
+            try:
+                dt_obj = datetime.strptime(row["punch_time"], "%Y-%m-%d %H:%M:%S")
+                day_punch_times.setdefault(dt_obj.date(), []).append(dt_obj.strftime("%H:%M:%S"))
+            except Exception:
+                pass
 
         all_dates = list(pd.date_range(date_from, date_to).date)
         working_days = 0; present_count = 0; holiday_duty_days = 0
         late_days = 0; early_days = 0
 
         for d in all_dates:
-            is_work     = _is_working_day(d, badge, emp_dept)
-            day_punches = punch_df[punch_df["_date"] == d]
-            is_present  = len(day_punches) > 0
+            is_work    = _is_working_day(d, badge, emp_dept)
+            times_list = day_punch_times.get(d, [])
+            is_present = len(times_list) > 0
             is_holiday_duty = is_present and not is_work
             if is_work:
                 working_days += 1
@@ -2781,8 +2810,7 @@ def employee_monthly_summary(badge):
             if is_holiday_duty:
                 holiday_duty_days += 1
 
-            punches = [{"time": r["_time"]} for _, r in day_punches.iterrows()]
-            punches.sort(key=lambda x: x["time"])
+            punches = sorted([{"time": t} for t in times_list], key=lambda x: x["time"])
             if is_present and is_work:
                 late_info = _check_late_early(punches, emp_dept)
                 if late_info.get("late"): late_days += 1
@@ -2817,17 +2845,28 @@ def history_report():
     except:
         return jsonify({"error": "Invalid date format. Use DD/MM/YYYY"}), 400
     try:
-        emp_df   = load_employees()
-        conn     = connect_mdb()
-        uid_map  = get_uid_to_badge_map(conn)
-        punch_df = _get_checkinout(conn, date_from, date_to)
-        conn.close()
+        emp_df = load_employees()
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    punch_df[COL_CHECKTIME] = pd.to_datetime(punch_df[COL_CHECKTIME], errors="coerce")
-    punch_df = punch_df.dropna(subset=[COL_CHECKTIME])
-    punch_df["_date"]  = punch_df[COL_CHECKTIME].dt.date
-    punch_df["_badge"] = punch_df[COL_USER_ID].astype(str).str.strip().map(uid_map).fillna("")
+    # Load punch data from SQLite punches table (populated from device pulls).
+    start_dt = date_from.strftime("%Y-%m-%d") + " 00:00:00"
+    end_dt   = date_to.strftime("%Y-%m-%d")   + " 23:59:59"
+    date_badges = {}   # date obj -> set of badge strings
+    try:
+        db_punch = get_db()
+        punch_rows = db_punch.execute(
+            "SELECT badge, punch_time FROM punches WHERE punch_time >= ? AND punch_time <= ?",
+            (start_dt, end_dt)
+        ).fetchall()
+        db_punch.close()
+        for row in punch_rows:
+            try:
+                pt = datetime.strptime(row["punch_time"][:10], "%Y-%m-%d").date()
+                date_badges.setdefault(pt, set()).add(str(row["badge"]).strip())
+            except Exception:
+                pass
+    except Exception as e:
+        print("[History] Punch load error: {0}".format(e))
     all_dates = pd.date_range(date_from, date_to).date
     days_data = []
 
@@ -2848,7 +2887,7 @@ def history_report():
 
     for d in all_dates:
         d_str = d.strftime("%Y-%m-%d")
-        present_badges = set(punch_df[punch_df["_date"]==d]["_badge"].unique())
+        present_badges = date_badges.get(d, set())
         absent, present = [], []
         for _, emp in emp_df.iterrows():
             badge = emp["Badgenumber"]; dept = emp["DEPTNAME"]
@@ -2941,20 +2980,31 @@ def export_history():
     except (TypeError, ValueError):
         return jsonify({"error": "Invalid dates. Use DD/MM/YYYY"}), 400
     try:
-        emp_df   = load_employees()
-        conn     = connect_mdb()
-        uid_map  = get_uid_to_badge_map(conn)
-        punch_df = _get_checkinout(conn, date_from, date_to)
-        conn.close()
+        emp_df = load_employees()
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    punch_df[COL_CHECKTIME] = pd.to_datetime(punch_df[COL_CHECKTIME], errors="coerce")
-    punch_df = punch_df.dropna(subset=[COL_CHECKTIME])
-    punch_df["_date"]  = punch_df[COL_CHECKTIME].dt.date
-    punch_df["_badge"] = punch_df[COL_USER_ID].astype(str).str.strip().map(uid_map).fillna("")
+    # Load punch data from SQLite punches table (populated from device pulls).
+    start_dt = date_from.strftime("%Y-%m-%d") + " 00:00:00"
+    end_dt   = date_to.strftime("%Y-%m-%d")   + " 23:59:59"
+    date_badges_ex = {}   # date obj -> set of badges
+    try:
+        db_punch = get_db()
+        punch_rows_ex = db_punch.execute(
+            "SELECT badge, punch_time FROM punches WHERE punch_time >= ? AND punch_time <= ?",
+            (start_dt, end_dt)
+        ).fetchall()
+        db_punch.close()
+        for row in punch_rows_ex:
+            try:
+                pt = datetime.strptime(row["punch_time"][:10], "%Y-%m-%d").date()
+                date_badges_ex.setdefault(pt, set()).add(str(row["badge"]).strip())
+            except Exception:
+                pass
+    except Exception as e:
+        return jsonify({"error": "Could not load punch data: " + str(e)}), 500
     all_absent = []
     for d in pd.date_range(date_from, date_to).date:
-        present = set(punch_df[punch_df["_date"]==d]["_badge"].unique())
+        present = date_badges_ex.get(d, set())
         for _, emp in emp_df.iterrows():
             badge = emp["Badgenumber"]; dept = emp["DEPTNAME"]
             if not _is_working_day(d, badge, dept): continue
@@ -3688,25 +3738,28 @@ def save_email_settings():
 
 def _get_absent_data_for_date(target_date):
     """
-    Fetch absent/present data for a specific date from the MDB database.
+    Fetch absent/present data for a specific date from the SQLite punches table.
     target_date: a datetime.date object
     Returns a data dict in the same format as _cache["today"].
     """
     try:
-        emp_df   = load_employees()
-        conn     = connect_mdb()
-        uid_map  = get_uid_to_badge_map(conn)
-        punch_df = _get_checkinout(conn, target_date, target_date)
-        conn.close()
+        emp_df = load_employees()
     except Exception as e:
-        raise RuntimeError("Could not fetch MDB data: {0}".format(e))
+        raise RuntimeError("Could not load employees: {0}".format(e))
 
-    punch_df[COL_CHECKTIME] = pd.to_datetime(punch_df[COL_CHECKTIME], errors="coerce")
-    punch_df = punch_df.dropna(subset=[COL_CHECKTIME])
-    punch_df["_date"]  = punch_df[COL_CHECKTIME].dt.date
-    punch_df["_badge"] = punch_df[COL_USER_ID].astype(str).str.strip().map(uid_map).fillna("")
-
-    present_badges = set(punch_df[punch_df["_date"] == target_date]["_badge"].unique())
+    # Load punches from SQLite for the target date
+    start_s = target_date.strftime("%Y-%m-%d") + " 00:00:00"
+    end_s   = target_date.strftime("%Y-%m-%d") + " 23:59:59"
+    try:
+        db_punch = get_db()
+        punch_rows = db_punch.execute(
+            "SELECT DISTINCT badge FROM punches WHERE punch_time >= ? AND punch_time <= ?",
+            (start_s, end_s)
+        ).fetchall()
+        db_punch.close()
+        present_badges = {str(r["badge"]).strip() for r in punch_rows if r["badge"]}
+    except Exception as e:
+        raise RuntimeError("Could not fetch punch data: {0}".format(e))
     absent, present = [], []
     for _, emp in emp_df.iterrows():
         badge = emp["Badgenumber"]; dept = emp["DEPTNAME"]

@@ -25,7 +25,7 @@
     "log_level": "INFO",
     "name":"GAES-attendance",
     "telegram": {
-    "bot_token": "7985099852:AAFL_aTu4g5pB-3xaKoUVrZy94oWGOa3HfY",
+    "bot_token": "8744699402:AAGaLz0HWIBKYHzWBfr_qr6U3BrUe7lJ2A4",
     "chat_id": "-1003063465563",
     "enabled": true,
     "notifications": {
