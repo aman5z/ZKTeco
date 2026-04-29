@@ -1557,9 +1557,10 @@ input:checked+.slider:before{transform:translateX(16px);background:#000}
               <div class="text-muted" style="font-size:12px">Loading...</div>
             </div></div>
           </div>
-          <div class="card" style="margin-top:14px">
+            <div class="card" style="margin-top:14px">
             <div class="card-header"><h3>👤 Unmapped Device Users</h3><button class="btn btn-secondary btn-sm" onclick="loadUnmapped()">Refresh</button></div>
-            <div class="table-wrap"><table><thead><tr><th>UID</th><th>Device</th><th>Seen At</th><th>Action</th></tr></thead><tbody id="unmappedBody"></tbody></table></div>
+            <div style="font-size:11px;color:var(--text2);padding:6px 14px">Device UIDs whose punches could not be matched to an employee. Click <strong>Map Badge</strong> to link a UID to its employee badge number — this re-attributes all stored punches.</div>
+            <div class="table-wrap"><table><thead><tr><th>Device UID</th><th>Device</th><th>Last Seen</th><th>Action</th></tr></thead><tbody id="unmappedBody"></tbody></table></div>
           </div>
         </div>
         <!-- Shifts -->

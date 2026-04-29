@@ -42,12 +42,16 @@ async function loadUnmapped(){
       <td class="td-mono">${esc(u.uid)}</td>
       <td class="text-muted">${esc(u.device_ip)}</td>
       <td class="text-muted td-mono" style="font-size:10px">${fmtDateTime(u.seen_at)}</td>
-      <td><button class="btn btn-secondary btn-sm" onclick="resolveUnmapped('${esc(u.device_ip)}','${esc(u.uid)}')">✓ Resolve</button></td>
+      <td><button class="btn btn-secondary btn-sm" onclick="resolveUnmapped('${esc(u.device_ip)}','${esc(u.uid)}')">🔗 Map Badge</button></td>
     </tr>`).join('')||'<tr><td colspan="4" class="text-muted" style="padding:12px;text-align:center">No unmapped users ✅</td></tr>';
   }catch(e){}
 }
 async function resolveUnmapped(ip,uid){
-  try{await zkAPI('/api/db/resolve-unknown',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({device_ip:ip, uid:uid, badge:uid})});toast('✅ Resolved');loadUnmapped()}catch(e){toast('❌ '+e.message)}
+  const badge=prompt('Map device UID "'+uid+'" (device: '+ip+') to employee badge number:\n\nEnter the Badgenumber from the employee list (e.g. 1712)',uid);
+  if(badge===null)return;
+  const b=badge.trim();
+  if(!b){toast('❌ Badge cannot be empty');return}
+  try{await zkAPI('/api/db/resolve-unknown',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({device_ip:ip, uid:uid, badge:b})});toast('✅ Mapped UID '+uid+' → Badge '+b);loadUnmapped()}catch(e){toast('❌ '+e.message)}
 }
 async function loadShifts(){
   if(STATE.isDemo){el('shiftsEditor').innerHTML='<div class="text-muted">Demo — connect ZK server for shift editing</div>';return}

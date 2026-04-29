@@ -1945,9 +1945,15 @@ def _refresh_cache():
                 punch_store = []
                 for (uid, ts) in full_records:
                     badge = _uid_to_badge_cache.get(uid, "")
-                    punch_store.append((badge or uid, ts, ip))
+                    # If the cache-mapped badge is not a known employee but the raw UID
+                    # itself is (pyzk often returns badge number directly as user_id),
+                    # prefer the raw UID so the punch is stored under the correct badge.
+                    if badge and badge not in emp_badges and uid in emp_badges:
+                        badge = uid
+                    effective_badge = badge or uid
+                    punch_store.append((effective_badge, ts, ip))
                     # Record unknown users (device UIDs not mapped to any employee badge)
-                    if not badge or badge not in emp_badges:
+                    if not effective_badge or effective_badge not in emp_badges:
                         try: db_manager.record_unknown_user(ip, uid)
                         except Exception: pass
                 try: db_manager.store_punches(punch_store)
@@ -1982,9 +1988,16 @@ def _refresh_cache():
     # Translate raw device UIDs → employee badge numbers.
     # _uid_to_badge_cache maps uid_str -> badge_str.
     # Also keep raw UIDs as fallback (some devices store badge number as UID).
+    _emp_badges_set = _emp_cache_for_db()
     present_badges_resolved = set()
     for uid in present_badges:
         mapped = _uid_to_badge_cache.get(uid, "")
+        # If the cache maps this UID to a badge that isn't a known employee,
+        # but the raw UID itself is a known employee badge, prefer the raw UID.
+        # This handles stale/wrong MDB mappings and the common case where pyzk
+        # returns badge numbers directly as user_id.
+        if mapped and mapped not in _emp_badges_set and uid in _emp_badges_set:
+            mapped = uid
         if mapped:
             present_badges_resolved.add(mapped)
         else:
@@ -4592,6 +4605,12 @@ def import_employees_upload():
         if not _sqlite_ready():
             db_manager.init_db()
         n = db_manager.upsert_employees(emp_list)
+        # Ensure uid==badge fallback entries are in the cache for newly imported employees.
+        # This is important when pyzk returns badge numbers directly as user_id (common case).
+        global _uid_to_badge_cache
+        for badge, _name, _dept, active in emp_list:
+            if badge and badge not in _uid_to_badge_cache:
+                _uid_to_badge_cache[badge] = badge
         # Also save as CSV for MDB-free mode
         csv_path = os.path.join(SCRIPT_DIR, "employees_export.csv")
         df[["Badgenumber","Name","DEPTNAME"]].to_csv(csv_path, index=False, encoding="utf-8-sig")
