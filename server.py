@@ -4053,34 +4053,35 @@ def save_telegram_settings():
     _init_telegram()
     return jsonify({"ok": True})
 
+def _ensure_telegram_initialized():
+    """Re-initialize Telegram notifier if not active (e.g. after server restart)."""
+    global _tg_notifier
+    if not _tg_notifier:
+        _init_telegram()
+    return _tg_notifier
+
 @app.route("/api/settings/telegram/test", methods=["POST"])
 @admin_required
 def test_telegram():
-    global _tg_notifier
-    # Re-init if notifier is None (e.g. after server restart with DB-stored credentials)
-    if not _tg_notifier:
-        _init_telegram()
-    if not _tg_notifier:
+    notifier = _ensure_telegram_initialized()
+    if not notifier:
         return jsonify({"ok": False, "message": "Telegram not configured. Set bot_token and chat_id first."})
-    ok = _tg_notifier.test_connection()
+    ok = notifier.test_connection()
     return jsonify({"ok": ok, "message": "Test message sent!" if ok else "Send failed — check token and chat_id."})
 
 @app.route("/api/settings/telegram/test-report", methods=["POST"])
 @admin_required
 def test_telegram_report():
     """Send a test daily report via Telegram (using today's data)."""
-    global _tg_notifier
-    # Re-init if notifier is None (e.g. after server restart with DB-stored credentials)
-    if not _tg_notifier:
-        _init_telegram()
-    if not _tg_notifier:
+    notifier = _ensure_telegram_initialized()
+    if not notifier:
         return jsonify({"ok": False, "message": "Telegram not configured."})
     try:
         report_data = _get_absent_data_for_date(date.today())
     except Exception as exc:
         print("[Telegram] test-report error: {0}".format(exc)); sys.stdout.flush()
         return jsonify({"ok": False, "message": "Could not build report data. Check server logs."}), 500
-    ok = _tg_notifier.send_daily_absent_report(
+    ok = notifier.send_daily_absent_report(
         absent=report_data.get("absent", []),
         present_count=report_data.get("present_count", 0),
         total=report_data.get("total", 0),
