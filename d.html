@@ -1835,6 +1835,27 @@ input:checked+.slider:before{transform:translateX(16px);background:#000}
               <div id="emailTestResult" style="margin-top:8px;font-size:11px;font-family:var(--mono)"></div>
             </div>
             <div class="settings-section">
+              <h3>📱 Telegram Notifications</h3>
+              <div class="form-group"><label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="tgEnabled"> Enable Telegram notifications</label></div>
+              <div class="form-group"><label>Bot Token <span style="font-size:10px;color:var(--text3)">(from @BotFather — leave blank to keep current)</span></label><input class="form-control" id="tgBotToken" placeholder="Enter new token or leave blank" type="password" autocomplete="new-password"></div>
+              <div class="form-group"><label>Chat ID <span style="font-size:10px;color:var(--text3)">(group, channel or private chat)</span></label><input class="form-control" id="tgChatId" placeholder="-100xxxxxxxxxx or @channelname"></div>
+              <div class="form-group" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="tgNotifyDevice"> Device online/offline</label>
+                <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="tgNotifyPunch"> Per-punch alerts</label>
+                <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="tgNotifyReport"> Daily absent report</label>
+              </div>
+              <div style="display:flex;gap:10px">
+                <div class="form-group" style="flex:1"><label>Report Hour (0-23)</label><input class="form-control" type="number" id="tgReportHour" min="0" max="23" placeholder="8"></div>
+                <div class="form-group" style="flex:1"><label>Report Minute (0-59)</label><input class="form-control" type="number" id="tgReportMin" min="0" max="59" placeholder="10"></div>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+                <button class="btn btn-primary btn-sm" onclick="saveTelegramSettings()">💾 Save Telegram Config</button>
+                <button class="btn btn-secondary btn-sm" onclick="testTelegramMessage()">🧪 Send Test Message</button>
+                <button class="btn btn-secondary btn-sm" onclick="testTelegramReport()">📋 Send Test Report</button>
+              </div>
+              <div id="tgTestResult" style="margin-top:4px;font-size:11px;font-family:var(--mono)"></div>
+            </div>
+            <div class="settings-section">
               <h3>🔐 Security</h3>
               <div class="form-group"><label>Session Timeout (minutes, 0=disabled)</label><input class="form-control" id="sSessionTimeout" type="number" value="60"></div>
             </div>

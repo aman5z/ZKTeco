@@ -701,17 +701,23 @@ def _init_telegram():
         from telegram_notifier import TelegramNotifier
         token   = _cfg('telegram', 'bot_token',   '') or db_manager.get_setting('tg_bot_token',   '')
         chat_id = _cfg('telegram', 'chat_id',     '') or db_manager.get_setting('tg_chat_id',     '')
-        enabled = (_cfg('telegram', 'enabled', '1') == '1') or (db_manager.get_setting('tg_enabled', '1') == '1')
         if not token or not chat_id:
             print("[Telegram] No token/chat_id configured — notifications disabled"); sys.stdout.flush()
+            _tg_notifier = None
             return
+        # Prefer DB settings (written by UI) over settings.ini defaults
+        def _tg_bool(db_key, ini_key, default='1'):
+            db_val = db_manager.get_setting(db_key, None)
+            if db_val is not None:
+                return db_val == '1'
+            return _cfg('telegram', ini_key, default) == '1'
         _tg_notifier = TelegramNotifier(
             bot_token=token,
             chat_id=chat_id,
-            enabled=enabled,
-            notify_device_status=(_cfg('telegram', 'notify_device_status', '1') == '1'),
-            notify_punches=(       _cfg('telegram', 'notify_punches',       '1') == '1'),
-            notify_daily_report=(  _cfg('telegram', 'notify_daily_report',  '1') == '1'),
+            enabled=_tg_bool('tg_enabled', 'enabled'),
+            notify_device_status=_tg_bool('tg_notify_device_status', 'notify_device_status'),
+            notify_punches=_tg_bool('tg_notify_punches', 'notify_punches'),
+            notify_daily_report=_tg_bool('tg_notify_daily_report', 'notify_daily_report'),
             system_name="Attendance",
         )
         print("[Telegram] Notifier ready (chat {0})".format(chat_id)); sys.stdout.flush()
@@ -2010,12 +2016,15 @@ def _refresh_cache():
                 new_today_punches = []   # (badge, name, ts) for Telegram
                 today_str = today.strftime("%Y-%m-%d")
                 for (uid, ts) in full_records:
-                    badge = _uid_to_badge_cache.get(uid, "")
-                    # If the cache-mapped badge is not a known employee but the raw UID
-                    # itself is (pyzk often returns badge number directly as user_id),
-                    # prefer the raw UID so the punch is stored under the correct badge.
-                    if badge and badge not in emp_badges and uid in emp_badges:
+                    # Prefer raw device user_id when it directly matches an employee
+                    # badge (the common ZKTeco case: user_id == badge number).  Only
+                    # use the MDB UID→badge map when the raw UID is NOT itself a badge,
+                    # preventing cross-device sequential-UID collisions from causing
+                    # punches to be attributed to the wrong employee.
+                    if uid in emp_badges:
                         badge = uid
+                    else:
+                        badge = _uid_to_badge_cache.get(uid, "")
                     effective_badge = badge or uid
                     punch_store.append((effective_badge, ts, ip))
                     # Record unknown users (device UIDs not mapped to any employee badge)
@@ -2080,20 +2089,23 @@ def _refresh_cache():
     _emp_badges_set = _emp_cache_for_db()
     present_badges_resolved = set()
     for uid in present_badges:
-        mapped = _uid_to_badge_cache.get(uid, "")
-        # If the cache maps this UID to a badge that isn't a known employee,
-        # but the raw UID itself is a known employee badge, prefer the raw UID.
-        # This handles stale/wrong MDB mappings and the common case where pyzk
-        # returns badge numbers directly as user_id.
-        if mapped and mapped not in _emp_badges_set and uid in _emp_badges_set:
-            mapped = uid
-        if mapped:
-            present_badges_resolved.add(mapped)
-        else:
+        # ZKTeco devices normally enroll users with their badge/employee number as
+        # user_id.  Prefer the raw device user_id when it IS a known employee badge
+        # to avoid cross-device UID collisions: in multi-device setups different
+        # devices can assign the same internal sequential UID to different employees,
+        # so an MDB-derived UID→badge mapping from one device can be wrong for
+        # another device.  Only fall back to the MDB map when the raw UID is not
+        # itself a recognisable employee badge.
+        if uid in _emp_badges_set:
             present_badges_resolved.add(uid)
+        else:
+            mapped = _uid_to_badge_cache.get(uid, "")
+            present_badges_resolved.add(mapped if mapped else uid)
     # Supplement with badges already stored in the SQLite punches table for today.
     # This covers employees whose device UIDs did not match their badge at pull time
     # but whose data was correctly stored in a previous sync cycle.
+    # Only add badges that belong to known employees to prevent phantom/wrong UIDs
+    # (e.g., from UID collisions across devices) from showing as present.
     try:
         today_str = today.strftime("%Y-%m-%d")
         db_sup = get_db()
@@ -2104,7 +2116,10 @@ def _refresh_cache():
         db_sup.close()
         for r in sup_rows:
             b = str(r["badge"]).strip()
-            if b:
+            # Only add if it is a recognised employee badge (or emp set is empty which
+            # means we could not load the file — in that case add unconditionally so we
+            # don't accidentally hide everyone).
+            if b and (not _emp_badges_set or b in _emp_badges_set):
                 present_badges_resolved.add(b)
     except Exception as e:
         print("[Cache] DB punch supplement error: {0}".format(e)); sys.stdout.flush()
@@ -2552,30 +2567,35 @@ def today_report():
     # Supplement cached present/absent lists with the latest SQLite punch data so
     # that punches arriving after the last background refresh are reflected
     # immediately -- this mirrors what history_report() does at query time.
-    try:
-        today_str = date.today().strftime("%Y-%m-%d")
-        db_sup = get_db()
-        sup_rows = db_sup.execute(
-            "SELECT DISTINCT badge FROM punches WHERE punch_time >= ? AND punch_time <= ?",
-            (today_str + " 00:00:00", today_str + " 23:59:59")
-        ).fetchall()
-        db_sup.close()
-        latest_badges = {str(r["badge"]).strip() for r in sup_rows if r["badge"]}
-        # Move any employee in absent whose badge now appears in SQLite to present
-        cached_present_codes = {e["code"] for e in (data.get("present") or [])}
-        newly_present = [e for e in (data.get("absent") or []) if e["code"] in latest_badges and e["code"] not in cached_present_codes]
-        if newly_present:
-            updated_present = list(data.get("present") or []) + newly_present
-            updated_absent  = [e for e in (data.get("absent") or []) if e["code"] not in latest_badges]
-            updated_present.sort(key=lambda x: (_dept_sort(x["dept"]), x["name"]))
-            updated_absent.sort(key=lambda x:  (_dept_sort(x["dept"]), x["name"]))
-            data["present"]       = updated_present
-            data["absent"]        = updated_absent
-            data["present_count"] = len(updated_present)
-            data["absent_count"]  = len(updated_absent)
-            data["working_today"] = len(updated_present) + len(updated_absent)
-    except Exception as e:
-        print("[Today] Live supplement error: {0}".format(e)); sys.stdout.flush()
+    # Guard: only supplement when the cache was built for today.  After midnight
+    # the cache may still hold yesterday's lists; mixing them with today's SQLite
+    # punches would produce wrong present/absent counts until the next refresh.
+    cache_is_for_today = (last is not None and last.date() == date.today())
+    if cache_is_for_today:
+        try:
+            today_str = date.today().strftime("%Y-%m-%d")
+            db_sup = get_db()
+            sup_rows = db_sup.execute(
+                "SELECT DISTINCT badge FROM punches WHERE punch_time >= ? AND punch_time <= ?",
+                (today_str + " 00:00:00", today_str + " 23:59:59")
+            ).fetchall()
+            db_sup.close()
+            latest_badges = {str(r["badge"]).strip() for r in sup_rows if r["badge"]}
+            # Move any employee in absent whose badge now appears in SQLite to present
+            cached_present_codes = {e["code"] for e in (data.get("present") or [])}
+            newly_present = [e for e in (data.get("absent") or []) if e["code"] in latest_badges and e["code"] not in cached_present_codes]
+            if newly_present:
+                updated_present = list(data.get("present") or []) + newly_present
+                updated_absent  = [e for e in (data.get("absent") or []) if e["code"] not in latest_badges]
+                updated_present.sort(key=lambda x: (_dept_sort(x["dept"]), x["name"]))
+                updated_absent.sort(key=lambda x:  (_dept_sort(x["dept"]), x["name"]))
+                data["present"]       = updated_present
+                data["absent"]        = updated_absent
+                data["present_count"] = len(updated_present)
+                data["absent_count"]  = len(updated_absent)
+                data["working_today"] = len(updated_present) + len(updated_absent)
+        except Exception as e:
+            print("[Today] Live supplement error: {0}".format(e)); sys.stdout.flush()
     return jsonify(data)
 
 # ==============================================================================
@@ -3638,6 +3658,53 @@ def send_email_report(data=None, test_recipient=None):
         return False, "SMTP error: {0}".format(str(e))
     except Exception as e:
         return False, "Error: {0}".format(str(e))
+
+def _get_absent_data_for_date(target_date):
+    """
+    Fetch absent/present data for a specific date from the SQLite punches table.
+    target_date: a datetime.date object
+    Returns a data dict in the same format as _cache["today"].
+    """
+    try:
+        emp_df = load_employees()
+    except Exception as e:
+        raise RuntimeError("Could not load employees: {0}".format(e))
+
+    # Load punches from SQLite for the target date
+    start_s = target_date.strftime("%Y-%m-%d") + " 00:00:00"
+    end_s   = target_date.strftime("%Y-%m-%d") + " 23:59:59"
+    try:
+        db_punch = get_db()
+        punch_rows = db_punch.execute(
+            "SELECT DISTINCT badge FROM punches WHERE punch_time >= ? AND punch_time <= ?",
+            (start_s, end_s)
+        ).fetchall()
+        db_punch.close()
+        present_badges = {str(r["badge"]).strip() for r in punch_rows if r["badge"]}
+    except Exception as e:
+        raise RuntimeError("Could not fetch punch data: {0}".format(e))
+
+    absent, present = [], []
+    for _, emp in emp_df.iterrows():
+        badge = emp["Badgenumber"]; dept = emp["DEPTNAME"]
+        if not _is_working_day(target_date, badge, dept):
+            continue
+        rec = {"name": emp["Name"], "code": badge, "dept": dept}
+        (present if badge in present_badges else absent).append(rec)
+
+    absent.sort(key=lambda x: (_dept_sort(x["dept"]), x["name"]))
+    present.sort(key=lambda x: (_dept_sort(x["dept"]), x["name"]))
+
+    return {
+        "date":          target_date.strftime("%d %B %Y"),
+        "total":         len(present) + len(absent),
+        "present_count": len(present),
+        "absent_count":  len(absent),
+        "present":       present,
+        "absent":        absent,
+        "devices":       [],
+    }
+
 # ── Email scheduler ────────────────────────────────────────────────────────────
 def _email_scheduler_loop():
     """Background thread: send email at configured time every day."""
@@ -4013,49 +4080,6 @@ def test_telegram_report():
         dept_order=DEPT_ORDER,
     )
     return jsonify({"ok": ok, "message": "Report sent!" if ok else "Send failed."})
-    """
-    Fetch absent/present data for a specific date from the SQLite punches table.
-    target_date: a datetime.date object
-    Returns a data dict in the same format as _cache["today"].
-    """
-    try:
-        emp_df = load_employees()
-    except Exception as e:
-        raise RuntimeError("Could not load employees: {0}".format(e))
-
-    # Load punches from SQLite for the target date
-    start_s = target_date.strftime("%Y-%m-%d") + " 00:00:00"
-    end_s   = target_date.strftime("%Y-%m-%d") + " 23:59:59"
-    try:
-        db_punch = get_db()
-        punch_rows = db_punch.execute(
-            "SELECT DISTINCT badge FROM punches WHERE punch_time >= ? AND punch_time <= ?",
-            (start_s, end_s)
-        ).fetchall()
-        db_punch.close()
-        present_badges = {str(r["badge"]).strip() for r in punch_rows if r["badge"]}
-    except Exception as e:
-        raise RuntimeError("Could not fetch punch data: {0}".format(e))
-    absent, present = [], []
-    for _, emp in emp_df.iterrows():
-        badge = emp["Badgenumber"]; dept = emp["DEPTNAME"]
-        if not _is_working_day(target_date, badge, dept):
-            continue
-        rec = {"name": emp["Name"], "code": badge, "dept": dept}
-        (present if badge in present_badges else absent).append(rec)
-
-    absent.sort(key=lambda x: (_dept_sort(x["dept"]), x["name"]))
-    present.sort(key=lambda x: (_dept_sort(x["dept"]), x["name"]))
-
-    return {
-        "date":          target_date.strftime("%d %B %Y"),
-        "total":         len(present) + len(absent),
-        "present_count": len(present),
-        "absent_count":  len(absent),
-        "present":       present,
-        "absent":        absent,
-        "devices":       [],
-    }
 
 
 @app.route("/api/settings/email/test", methods=["POST"])
