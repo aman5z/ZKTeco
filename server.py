@@ -2445,6 +2445,33 @@ def today_report():
         return jsonify({"error": "No data yet. Click Refresh to start.", "loading": False}), 503
     age  = int((datetime.now()-last).total_seconds()) if last else 0
     data = dict(data); data["cache_age_secs"] = age; data["refreshing"] = refreshing
+    # Supplement cached present/absent lists with the latest SQLite punch data so
+    # that punches arriving after the last background refresh are reflected
+    # immediately -- this mirrors what history_report() does at query time.
+    try:
+        today_str = date.today().strftime("%Y-%m-%d")
+        db_sup = get_db()
+        sup_rows = db_sup.execute(
+            "SELECT DISTINCT badge FROM punches WHERE punch_time >= ? AND punch_time <= ?",
+            (today_str + " 00:00:00", today_str + " 23:59:59")
+        ).fetchall()
+        db_sup.close()
+        latest_badges = {str(r["badge"]).strip() for r in sup_rows if r["badge"]}
+        # Move any employee in absent whose badge now appears in SQLite to present
+        cached_present_codes = {e["code"] for e in (data.get("present") or [])}
+        newly_present = [e for e in (data.get("absent") or []) if e["code"] in latest_badges and e["code"] not in cached_present_codes]
+        if newly_present:
+            updated_present = list(data.get("present") or []) + newly_present
+            updated_absent  = [e for e in (data.get("absent") or []) if e["code"] not in latest_badges]
+            updated_present.sort(key=lambda x: (_dept_sort(x["dept"]), x["name"]))
+            updated_absent.sort(key=lambda x:  (_dept_sort(x["dept"]), x["name"]))
+            data["present"]       = updated_present
+            data["absent"]        = updated_absent
+            data["present_count"] = len(updated_present)
+            data["absent_count"]  = len(updated_absent)
+            data["working_today"] = len(updated_present) + len(updated_absent)
+    except Exception as e:
+        print("[Today] Live supplement error: {0}".format(e)); sys.stdout.flush()
     return jsonify(data)
 
 # ==============================================================================
