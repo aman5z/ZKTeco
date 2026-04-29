@@ -60,6 +60,3 @@ async function exportHistory(){
   window.open(CFG.zkUrl+'/api/history/export?from='+fromFmt+'&to='+toFmt,'_blank');
 }
 
-// ===========================================================================
-//  CALENDAR
-// ===========================================================================

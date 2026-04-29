@@ -109,6 +109,3 @@ async function exportCalendar(){
   window.open(CFG.zkUrl+'/api/employee/'+badge+'/report/export?from='+dateFrom+'&to='+dateTo,'_blank');
 }
 
-// ===========================================================================
-//  EMPLOYEES
-// ===========================================================================
