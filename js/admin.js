@@ -94,7 +94,7 @@ async function saveWorkdays(){
   const depts=el('workdaysEditor')._depts||[];
   const workdays={};
   depts.forEach(dept=>{workdays[dept]=[0,1,2,3,4,5,6].filter(d=>el('wd_'+dept+'_'+d)?.checked)});
-  try{await zkAPI('/api/workdays/dept',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({workdays})});toast('✅ Workdays saved')}catch(e){toast('❌ '+e.message)}
+  try{await zkAPI('/api/workdays/dept',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(workdays)});toast('✅ Workdays saved')}catch(e){toast('❌ '+e.message)}
 }
 async function loadHolidays(){
   if(STATE.isDemo){el('holidaysList').innerHTML='<div class="text-muted">Demo mode</div>';return}

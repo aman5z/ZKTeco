@@ -3949,16 +3949,23 @@ def get_workdays_dept():
 @app.route("/api/workdays/dept", methods=["POST"])
 @admin_required
 def save_workdays_dept():
-    """Save workday config for departments. Body: {dept: [weekday_ints], ...}"""
+    """Save workday config for departments. Body: {dept: [weekday_ints], ...}
+    Also accepts legacy wrapped body {workdays: {dept: [weekday_ints], ...}}.
+    """
     data = request.get_json() or {}
+    # Unwrap legacy format sent as {workdays: {...}}
+    if "workdays" in data and isinstance(data.get("workdays"), dict) and len(data) == 1:
+        data = data["workdays"]
     try:
+        saved = 0
         for dept, days in data.items():
             if isinstance(days, list) and all(isinstance(d, int) and 0 <= d <= 6 for d in days):
                 save_dept_workday(dept, days)
+                saved += 1
         _load_workday_caches()   # Refresh in-memory cache
         db_manager.write_audit(session.get("username","?"), "UPDATE_DEPT_WORKDAYS",
-                               "{0} depts updated".format(len(data)), request.remote_addr)
-        return jsonify({"ok": True})
+                               "{0} depts updated".format(saved), request.remote_addr)
+        return jsonify({"ok": True, "saved": saved})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
