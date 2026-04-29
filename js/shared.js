@@ -541,9 +541,10 @@ async function tryGASLogin(){
     } else {
       // Token is already null; clear persisted token too
       lset('gasToken','');
+      const reason = (d&&d.error) ? d.error : 'check credentials';
       console.warn('[GAS] Login returned no token:', d);
       if(el('gasStatusDot'))el('gasStatusDot').className='sb-dot yellow';
-      if(el('gasStatusText'))el('gasStatusText').textContent='GAS: Auth failed';
+      if(el('gasStatusText'))el('gasStatusText').textContent='GAS: '+reason;
     }
   } catch(e) {
     lset('gasToken','');
@@ -691,6 +692,7 @@ async function onLoginSuccess(user){
     // Attempt background sync of system settings over previous localStorage
     await loadSystemSettings();
     if(STATE.isAdmin) await loadEmailSettings();
+    if(STATE.isAdmin) loadTelegramSettings();
     await loadDashboard();
     loadEmployees();
     if(can('tickets'))loadTickets();
@@ -758,7 +760,7 @@ function showPage(page){
   if(page==='attlogs'){const now=new Date();if(el('logsTo'))el('logsTo').valueAsDate=now;const f=new Date(now);f.setDate(f.getDate()-1);if(el('logsFrom'))el('logsFrom').valueAsDate=f;loadAttLogs();}
   if(page==='terminal'){const url=_termUrl();if(url)loadTerminalFrame();else showTermSetup();}
   if(page==='sql'){/* ready */}
-  if(page==='settings'){applyBranding();setTheme(CFG.theme);loadEmailSettings()}
+  if(page==='settings'){applyBranding();setTheme(CFG.theme);loadEmailSettings();loadTelegramSettings()}
   if(page==='messages')loadMessages();
   if(page==='notes')loadNotes();
   if(_msgPollTimer){ clearInterval(_msgPollTimer); _msgPollTimer=null; }

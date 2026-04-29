@@ -701,17 +701,23 @@ def _init_telegram():
         from telegram_notifier import TelegramNotifier
         token   = _cfg('telegram', 'bot_token',   '') or db_manager.get_setting('tg_bot_token',   '')
         chat_id = _cfg('telegram', 'chat_id',     '') or db_manager.get_setting('tg_chat_id',     '')
-        enabled = (_cfg('telegram', 'enabled', '1') == '1') or (db_manager.get_setting('tg_enabled', '1') == '1')
         if not token or not chat_id:
             print("[Telegram] No token/chat_id configured — notifications disabled"); sys.stdout.flush()
+            _tg_notifier = None
             return
+        # Prefer DB settings (written by UI) over settings.ini defaults
+        def _tg_bool(db_key, ini_key, default='1'):
+            db_val = db_manager.get_setting(db_key, None)
+            if db_val is not None:
+                return db_val == '1'
+            return _cfg('telegram', ini_key, default) == '1'
         _tg_notifier = TelegramNotifier(
             bot_token=token,
             chat_id=chat_id,
-            enabled=enabled,
-            notify_device_status=(_cfg('telegram', 'notify_device_status', '1') == '1'),
-            notify_punches=(       _cfg('telegram', 'notify_punches',       '1') == '1'),
-            notify_daily_report=(  _cfg('telegram', 'notify_daily_report',  '1') == '1'),
+            enabled=_tg_bool('tg_enabled', 'enabled'),
+            notify_device_status=_tg_bool('tg_notify_device_status', 'notify_device_status'),
+            notify_punches=_tg_bool('tg_notify_punches', 'notify_punches'),
+            notify_daily_report=_tg_bool('tg_notify_daily_report', 'notify_daily_report'),
             system_name="Attendance",
         )
         print("[Telegram] Notifier ready (chat {0})".format(chat_id)); sys.stdout.flush()

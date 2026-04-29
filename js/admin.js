@@ -174,3 +174,72 @@ async function killSession(sid,username){
   try{await zkAPI('/api/sessions/user/'+username,{method:'POST'});toast('✅ Session terminated');loadSessions()}catch(e){toast('❌ '+e.message)}
 }
 
+// ===========================================================================
+//  TELEGRAM SETTINGS
+// ===========================================================================
+async function loadTelegramSettings(){
+  try{
+    const d=await zkAPI('/api/settings/telegram');
+    if(!d)return;
+    if(el('tgEnabled'))el('tgEnabled').checked=!!d.enabled;
+    if(el('tgBotToken'))el('tgBotToken').placeholder=d.token_set?'Current token set (leave blank to keep)':'Enter bot token from @BotFather';
+    if(el('tgChatId'))el('tgChatId').value=d.chat_id||'';
+    if(el('tgNotifyDevice'))el('tgNotifyDevice').checked=!!d.notify_device_status;
+    if(el('tgNotifyPunch'))el('tgNotifyPunch').checked=!!d.notify_punches;
+    if(el('tgNotifyReport'))el('tgNotifyReport').checked=!!d.notify_daily_report;
+    if(el('tgReportHour'))el('tgReportHour').value=d.daily_report_hour??8;
+    if(el('tgReportMin'))el('tgReportMin').value=d.daily_report_minute??10;
+  }catch(e){}
+}
+async function saveTelegramSettings(){
+  const res=el('tgTestResult');
+  if(res){res.textContent='Saving...';res.style.color='var(--text2)';}
+  const token=(el('tgBotToken')?.value||'').trim();
+  const payload={
+    enabled:   el('tgEnabled')?.checked??true,
+    chat_id:   el('tgChatId')?.value.trim()||'',
+    notify_device_status: el('tgNotifyDevice')?.checked??true,
+    notify_punches:       el('tgNotifyPunch')?.checked??true,
+    notify_daily_report:  el('tgNotifyReport')?.checked??true,
+    daily_report_hour:    parseInt(el('tgReportHour')?.value||8),
+    daily_report_minute:  parseInt(el('tgReportMin')?.value||10),
+  };
+  if(token)payload.bot_token=token;
+  try{
+    await zkAPI('/api/settings/telegram',{method:'POST',body:JSON.stringify(payload)});
+    if(res){res.textContent='✅ Telegram settings saved';res.style.color='var(--green)';}
+    toast('✅ Telegram settings saved');
+    loadTelegramSettings();
+  }catch(e){
+    if(res){res.textContent='❌ '+e.message;res.style.color='var(--red)';}
+  }
+}
+async function testTelegramMessage(){
+  const res=el('tgTestResult');
+  if(res){res.textContent='Sending test message...';res.style.color='var(--text2)';}
+  try{
+    const d=await zkAPI('/api/settings/telegram/test',{method:'POST'});
+    if(res){
+      res.textContent=(d.ok?'✅ ':'❌ ')+(d.message||'Done');
+      res.style.color=d.ok?'var(--green)':'var(--red)';
+    }
+    toast(d.ok?'✅ Test message sent':'❌ Send failed');
+  }catch(e){
+    if(res){res.textContent='❌ '+e.message;res.style.color='var(--red)';}
+  }
+}
+async function testTelegramReport(){
+  const res=el('tgTestResult');
+  if(res){res.textContent='Sending test absent report...';res.style.color='var(--text2)';}
+  try{
+    const d=await zkAPI('/api/settings/telegram/test-report',{method:'POST'});
+    if(res){
+      res.textContent=(d.ok?'✅ ':'❌ ')+(d.message||'Done');
+      res.style.color=d.ok?'var(--green)':'var(--red)';
+    }
+    toast(d.ok?'✅ Test report sent':'❌ Report send failed');
+  }catch(e){
+    if(res){res.textContent='❌ '+e.message;res.style.color='var(--red)';}
+  }
+}
+
