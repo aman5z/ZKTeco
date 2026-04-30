@@ -131,7 +131,7 @@ def collect_device_logs(device: dict) -> List[dict]:
     try:
         logging.info(f"[{device['device_id']}] Connecting to device {device['ip_address']}...")
         conn = zk.connect()
-        conn.enable_device()
+        conn.disable_device()
         logging.info(f"[{device['device_id']}] Connected. Gathering logs...")
 
         logs = conn.get_attendance()

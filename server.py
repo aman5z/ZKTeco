@@ -16,6 +16,7 @@ New in v2:
 
 import os
 import sys
+import html
 import warnings
 import threading
 import time
@@ -1238,7 +1239,7 @@ def auth_change_password():
             return jsonify({"error": "User not found"}), 404
         # Admins can skip current-password check when resetting their own
         if u["role"] != "admin" or current:
-            if u["password_hash"] != _hash_pw(current):
+            if not _verify_pw(current, u["password_hash"]):
                 return jsonify({"error": "Current password is incorrect"}), 400
         u["password_hash"] = _hash_pw(new_pw)
         u["must_change_password"] = False
@@ -1279,7 +1280,7 @@ def admin_list_users():
             "permissions": u.get("permissions", {}),
             "theme":       u.get("theme", "dark"),
             "last_login":  u.get("last_login", "Never"),
-            "avatar_id":   u.get("avatar_id", 1) if session.get("role")=="admin" else int(db_manager.get_setting(f"avatar_{session['username']}", 1) or 1),
+            "avatar_id":   u.get("avatar_id", 1) if session.get("role")=="admin" else int(db_manager.get_setting("avatar_{0}".format(uname), 1) or 1),
         })
     return jsonify(out)
 
@@ -1584,11 +1585,8 @@ def get_badge_to_uid_map(conn):
     df[COL_BADGE_MDB] = df[COL_BADGE_MDB].astype(str).str.strip()
     return dict(zip(df[COL_BADGE_MDB], df[COL_USER_ID]))
 
-import threading
-
 _local_sync_time = 0
 _local_sync_lock = threading.Lock()
-
 def _ensure_synced():
     global _local_sync_time
     # Sync every 5 minutes maximum
@@ -2254,7 +2252,7 @@ def execute_sql():
         conn = get_db()
         try:
             cursor = conn.execute(query)
-            if query.upper().startswith("SELECT") or query.upper().startswith("PRAGMA"):
+            if query.lstrip().upper().startswith("SELECT") or query.lstrip().upper().startswith("PRAGMA") or query.lstrip().upper().startswith("WITH"):
                 rows = cursor.fetchall()
                 cols = [desc[0] for desc in cursor.description] if cursor.description else []
                 return jsonify({"columns": cols, "rows": [list(r) for r in rows]})
@@ -2549,6 +2547,17 @@ def force_refresh():
     t.daemon = True
     t.start()
     return jsonify({"status": "Refresh started"})
+
+@app.route("/api/cache/force-refresh", methods=["POST"])
+@permission_required("force_refresh")
+def force_full_refresh():
+    """Full sync: re-pulls from devices then rebuilds the cache."""
+    global _local_sync_time
+    _local_sync_time = 0  # reset sync timer to force re-pull on next _ensure_synced call
+    t = threading.Thread(target=_refresh_cache)
+    t.daemon = True
+    t.start()
+    return jsonify({"status": "Full refresh started"})
 
 # ==============================================================================
 #  TODAY
@@ -3134,6 +3143,49 @@ def export_today():
     return send_file(buf, download_name="absent_{0}.xlsx".format(date.today().strftime('%Y%m%d')),
                      as_attachment=True, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
+@app.route("/api/punches")
+@login_required
+def get_raw_punches():
+    """Return raw punch records for the Attendance Logs page. Accepts ?from=YYYY-MM-DD&to=YYYY-MM-DD&badge="""
+    from_str  = request.args.get("from", "")
+    to_str    = request.args.get("to",   "")
+    badge_str = request.args.get("badge", "").strip()
+    if not from_str or not to_str:
+        return jsonify({"error": "Provide ?from=YYYY-MM-DD&to=YYYY-MM-DD"}), 400
+    try:
+        start_dt = from_str + " 00:00:00"
+        end_dt   = to_str   + " 23:59:59"
+    except Exception:
+        return jsonify({"error": "Invalid date format. Use YYYY-MM-DD"}), 400
+    try:
+        conn = get_db()
+        if badge_str:
+            rows = conn.execute(
+                "SELECT p.badge, p.punch_time, p.device_ip, e.name, e.dept "
+                "FROM punches p LEFT JOIN employees e ON p.badge=e.badge "
+                "WHERE p.punch_time >= ? AND p.punch_time <= ? AND p.badge=? "
+                "ORDER BY p.punch_time DESC LIMIT 5000",
+                (start_dt, end_dt, badge_str)
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT p.badge, p.punch_time, p.device_ip, e.name, e.dept "
+                "FROM punches p LEFT JOIN employees e ON p.badge=e.badge "
+                "WHERE p.punch_time >= ? AND p.punch_time <= ? "
+                "ORDER BY p.punch_time DESC LIMIT 5000",
+                (start_dt, end_dt)
+            ).fetchall()
+        conn.close()
+        return jsonify([{
+            "badge":      r["badge"],
+            "punch_time": r["punch_time"],
+            "device_ip":  r["device_ip"],
+            "name":       r["name"]  or "",
+            "dept":       r["dept"]  or "",
+        } for r in rows])
+    except Exception as e:
+        return jsonify({"error": "Failed to load punch records"}), 500
+
 @app.route("/api/history/export")
 @permission_required("export_reports")
 def export_history():
@@ -3495,7 +3547,7 @@ def _get_email_cfg():
         "smtp_port":    int(g("email_smtp_port", "465")),
         "sender":       g("email_sender",        "print@gulfasian.com"),
         "sender_name":  g("email_sender_name",   "ZKTeco Attendance"),
-        "app_password": g("email_app_password",  "wavd envn yhsq hxhb"),
+        "app_password": g("email_app_password",  ""),
         "recipients":   g("email_recipients",    "print@gulfasian.com"),
         "send_hour":    int(g("email_send_hour", "9")),
         "send_minute":  int(g("email_send_min",  "30")),
@@ -3522,14 +3574,14 @@ def _build_email_html(data):
         <tr>
           <td colspan="2" style="background:#1F4E79;color:#fff;font-weight:700;
               padding:8px 14px;font-size:12px;letter-spacing:.5px">{dept} &nbsp;({n})</td>
-        </tr>""".format(dept=dept, n=len(names))
+        </tr>""".format(dept=html.escape(str(dept)), n=len(names))
         for i, name in enumerate(sorted(names)):
             bg = "#EBF3FB" if i % 2 == 0 else "#FFFFFF"
             dept_rows += """
         <tr>
           <td style="padding:7px 14px;font-size:13px;background:{bg}">{name}</td>
           <td style="padding:7px 14px;font-size:12px;color:#666;background:{bg}">{dept}</td>
-        </tr>""".format(bg=bg, name=name, dept=dept)
+        </tr>""".format(bg=bg, name=html.escape(str(name)), dept=html.escape(str(dept)))
 
     html = """<!DOCTYPE html>
 <html><head><meta charset="UTF-8"></head>
@@ -3748,8 +3800,8 @@ def _telegram_scheduler_loop():
             if not _tg_notifier or not _tg_notifier.notify_daily_report:
                 time.sleep(300); continue
 
-            rpt_hour   = _cfg_int('telegram', 'daily_report_hour',   8)
-            rpt_minute = _cfg_int('telegram', 'daily_report_minute', 10)
+            rpt_hour   = int(db_manager.get_setting('tg_daily_report_hour',   '') or _cfg_int('telegram', 'daily_report_hour',   8))
+            rpt_minute = int(db_manager.get_setting('tg_daily_report_minute', '') or _cfg_int('telegram', 'daily_report_minute', 10))
 
             now    = datetime.now()
             target = now.replace(hour=rpt_hour, minute=rpt_minute, second=0, microsecond=0)
@@ -3795,6 +3847,7 @@ def start_telegram_scheduler():
 
 # ── Notice Board (Announcements) ────────────────────────────────────────────────
 @app.route("/api/announcements", methods=["GET"])
+@login_required
 def get_announcements():
     try:
         conn = get_db()
@@ -3953,12 +4006,15 @@ def save_note():
     user = session.get("username")
     try:
         conn = get_db()
-        # Migrate schema if columns don't exist
-        cols = [row[1] for row in conn.execute("PRAGMA table_info(notes)").fetchall()]
-        if "title" not in cols:
+        # Migrate schema if columns don't exist (wrapped per-column to avoid race on concurrent requests)
+        try:
             conn.execute("ALTER TABLE notes ADD COLUMN title TEXT DEFAULT ''")
-        if "color" not in cols:
+        except Exception:
+            pass  # column already exists
+        try:
             conn.execute("ALTER TABLE notes ADD COLUMN color TEXT DEFAULT 'purple'")
+        except Exception:
+            pass  # column already exists
         conn.execute("INSERT INTO notes (user_badge, text, title, color, timestamp) VALUES (?, ?, ?, ?, ?)",
                      (user, text, title, color, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
         conn.commit()
@@ -4053,26 +4109,35 @@ def save_telegram_settings():
     _init_telegram()
     return jsonify({"ok": True})
 
+def _ensure_telegram_initialized():
+    """Re-initialize Telegram notifier if not active (e.g. after server restart)."""
+    global _tg_notifier
+    if not _tg_notifier:
+        _init_telegram()
+    return _tg_notifier
+
 @app.route("/api/settings/telegram/test", methods=["POST"])
 @admin_required
 def test_telegram():
-    if not _tg_notifier:
+    notifier = _ensure_telegram_initialized()
+    if not notifier:
         return jsonify({"ok": False, "message": "Telegram not configured. Set bot_token and chat_id first."})
-    ok = _tg_notifier.test_connection()
+    ok = notifier.test_connection()
     return jsonify({"ok": ok, "message": "Test message sent!" if ok else "Send failed — check token and chat_id."})
 
 @app.route("/api/settings/telegram/test-report", methods=["POST"])
 @admin_required
 def test_telegram_report():
     """Send a test daily report via Telegram (using today's data)."""
-    if not _tg_notifier:
+    notifier = _ensure_telegram_initialized()
+    if not notifier:
         return jsonify({"ok": False, "message": "Telegram not configured."})
     try:
         report_data = _get_absent_data_for_date(date.today())
     except Exception as exc:
         print("[Telegram] test-report error: {0}".format(exc)); sys.stdout.flush()
         return jsonify({"ok": False, "message": "Could not build report data. Check server logs."}), 500
-    ok = _tg_notifier.send_daily_absent_report(
+    ok = notifier.send_daily_absent_report(
         absent=report_data.get("absent", []),
         present_count=report_data.get("present_count", 0),
         total=report_data.get("total", 0),
@@ -4249,22 +4314,22 @@ def api_get_holidays():
 @admin_required
 def api_add_holiday():
     data = request.get_json() or {}
-    date     = (data.get("date") or "").strip()
-    date_end = (data.get("date_end") or date).strip()
+    date_val = (data.get("date") or "").strip()
+    date_end = (data.get("date_end") or date_val).strip()
     label    = (data.get("label") or "Holiday").strip()
     scope    = (data.get("scope") or "all").strip()
     dept     = (data.get("dept") or "").strip()
     employees = (data.get("employees") or "").strip()
-    if not date:
+    if not date_val:
         return jsonify({"error": "date is required"}), 400
     if not label:
         return jsonify({"error": "label is required"}), 400
     if scope not in ("all", "dept", "employee"):
         return jsonify({"error": "scope must be all, dept, or employee"}), 400
     try:
-        hid = add_holiday(date, date_end, label, scope, dept, employees)
+        hid = add_holiday(date_val, date_end, label, scope, dept, employees)
         db_manager.write_audit(session.get("username","?"), "ADD_HOLIDAY",
-                               "{0} on {1} scope={2}".format(label, date, scope),
+                               "{0} on {1} scope={2}".format(label, date_val, scope),
                                request.remote_addr)
         return jsonify({"ok": True, "id": hid})
     except Exception as e:
@@ -5069,8 +5134,8 @@ rp = _RPShim()
 # ==============================================================================
 
 def _punch_device_cfg():
-    """Remote punches write only to the main biometric device."""
-    return ["10.20.141.21"], int(DEVICE_PORT)
+    """Remote punches write to all configured biometric devices."""
+    return list(get_device_ips()), int(DEVICE_PORT)
 
 def _punch_badge_for_session():
     users = _get_users()

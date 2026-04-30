@@ -514,6 +514,10 @@ def _pull_punches_from_devices():
             print("FAILED -- {0}".format(e))
         finally:
             if conn:
+                try:
+                    conn.enable_device()
+                except Exception:
+                    pass
                 try: conn.disconnect()
                 except: pass
     return present_badges

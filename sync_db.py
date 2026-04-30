@@ -754,7 +754,9 @@ def main():
 
     if "backup" in args:
         create_backup()
-        input("\nPress Enter to exit..."); return
+        if sys.stdin.isatty():
+            input("\nPress Enter to exit...")
+        return
 
     print("[1] Initialising database schema...")
     db_conn = init_db()
@@ -793,6 +795,9 @@ def main():
     else:
         print("\n[3] Skipping MDB import (devices-only mode)")
 
+    att_before = db_conn.execute("SELECT COUNT(*) FROM punches").fetchone()[0]
+    emp_before = db_conn.execute("SELECT COUNT(*) FROM employees").fetchone()[0]
+
     if "employees-only" not in args:
         print("\n[4] Pulling from {0} ZK device(s)...\n".format(len(DEVICE_IPS)))
         sync_devices(db_conn)
@@ -801,13 +806,15 @@ def main():
 
     total_att  = db_conn.execute("SELECT COUNT(*) FROM punches").fetchone()[0]
     total_emp  = db_conn.execute("SELECT COUNT(*) FROM employees").fetchone()[0]
+    added_att  = total_att - att_before
+    added_emp  = total_emp - emp_before
     unmapped_c = db_conn.execute(
         "SELECT COUNT(*) FROM device_users WHERE badge IS NULL OR badge=''").fetchone()[0]
     db_size    = os.path.getsize(DB_PATH) / (1024*1024)
 
     db_conn.execute(
         "INSERT INTO sync_log (sync_time,source,records_added,employees_added,notes) VALUES (?,?,?,?,?)",
-        (datetime.now().isoformat(), "sync_db.py", total_att, total_emp,
+        (datetime.now().isoformat(), "sync_db.py", added_att, added_emp,
          "devices-only" if "devices-only" in args else "full")
     )
     db_conn.commit(); db_conn.close()
@@ -823,7 +830,8 @@ def main():
         print("\n  ⚠  {0} UIDs couldn't be matched.".format(unmapped_c))
         print("     Dashboard → Admin → Unmapped Users to resolve.")
     print("\n  Dashboard will now use attendance.db automatically.")
-    input("\nPress Enter to exit...")
+    if sys.stdin.isatty():
+        input("\nPress Enter to exit...")
 
 if __name__ == "__main__":
     main()

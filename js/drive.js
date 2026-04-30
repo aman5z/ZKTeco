@@ -19,7 +19,7 @@ async function loadDrive(folderId){
     const folders=(d.folders||[]).map(f=>`<div class="drive-item" ondblclick="loadDrive('${f.id}')"><div class="icon">📁</div><div class="name">${esc(f.name)}</div></div>`);
     const files=(d.files||[]).map(f=>{
       const icon=f.mimeType.includes('image')?'🖼':f.mimeType.includes('pdf')?'📄':f.mimeType.includes('sheet')?'📊':f.mimeType.includes('document')?'📝':'📎';
-      const sz=f.size>1048576?(f.size/1048576).toFixed(1)+' MB':f.size>1024?(f.size/1024).toFixed(0)+' KB':f.size+' B';
+      const sz=f.size==null?'—':f.size>1048576?(f.size/1048576).toFixed(1)+' MB':f.size>1024?(f.size/1024).toFixed(0)+' KB':f.size+' B';
       return `<div class="drive-item" ondblclick="window.open('${f.url}','_blank')"><div class="icon">${icon}</div><div class="name">${esc(f.name)}</div><div class="size">${sz}</div></div>`;
     });
     el('driveGrid').innerHTML=folders.concat(files).join('')||'<div class="empty-state"><div class="icon">📁</div><p>Empty folder</p></div>';

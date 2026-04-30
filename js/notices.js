@@ -3,7 +3,7 @@
 // ===========================================================================
 async function loadAnnouncements(){
   try{
-    const d=await fetch(CFG.zkUrl+'/api/announcements').then(r=>r.json());
+    const d=await zkAPI('/api/announcements');
     if(d&&d.length>0){
       el('announcementBanner').style.display='block';
       let html = d.map(a => `[${a.created_at.split(' ')[0]}] ${esc(a.message)}`).join(' &nbsp;|&nbsp; ');

@@ -67,6 +67,9 @@ function ad_filterTools(){
 }
 
 let ad_favs=JSON.parse(localStorage.getItem("ad_favs")||"[]");
+let pingData=[];
+let monitorInterval=null;
+let qrObj=null;
 function ad_toggleFav(btn,name){
   const idx=ad_favs.indexOf(name);
   if(idx>=0){ad_favs.splice(idx,1);btn.textContent="☆";btn.classList.remove("active");}
@@ -82,16 +85,19 @@ function ad_renderFavs(){
   sec.style.display="block";
   ad_favs.forEach(name=>{
     const pill=document.createElement("span");pill.className="fav-pill";
-    pill.innerHTML=name+' <span style="cursor:pointer;margin-left:4px" onclick="ad_removeFav(this,\''+name.replace(/'/g,"\\'")+'\')">✕</span>';
-    pill.onclick=()=>{
+    const rmBtn=document.createElement("span");
+    rmBtn.style.cssText="cursor:pointer;margin-left:4px";rmBtn.textContent="✕";
+    rmBtn.dataset.favName=name;
+    rmBtn.addEventListener("click",function(ev){ev.stopPropagation();ad_removeFav(this.dataset.favName);});
+    pill.textContent=name+" ";pill.appendChild(rmBtn);
+    pill.addEventListener("click",()=>{
       const boxes=document.querySelectorAll("#ittools-wrap .tool-box");
       boxes.forEach(b=>{const h=b.querySelector("h3");if(h&&h.textContent.includes(name))b.scrollIntoView({behavior:"smooth",block:"center"});});
-    };
+    });
     pills.appendChild(pill);
   });
 }
-function ad_removeFav(el,name){
-  el.stopPropagation&&el.stopPropagation();
+function ad_removeFav(name){
   const idx=ad_favs.indexOf(name);if(idx>=0)ad_favs.splice(idx,1);
   localStorage.setItem("ad_favs",JSON.stringify(ad_favs));
   // Reset star buttons

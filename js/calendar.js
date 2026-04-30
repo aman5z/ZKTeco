@@ -41,6 +41,7 @@ function renderCalDemo(yr,mn){
   el('calPresent').textContent=days.filter(d=>d.present).length;
   el('calAbsent').textContent=days.filter(d=>d.working_day&&!d.present).length;
   el('calLate').textContent=days.filter(d=>d.late).length;
+  el('calEarly').textContent=0;
   el('calHD').textContent=0;
   el('calShiftInfo').textContent='Demo shift: 07:30 → 15:00 (grace: 15m)';
   renderCalendar(days,yr,mn);
@@ -87,10 +88,14 @@ async function initCalendarSelect(){
   el('calMonth').value=new Date().toISOString().substring(0,7);
   const sel=el('calBadgeSelect');
   sel.innerHTML='';
-  if(STATE.user.badge&&STATE.user.role!=='admin'){
-    const opt=document.createElement('option');opt.value=STATE.user.badge;opt.textContent=STATE.user.name+' (Me)';sel.appendChild(opt);
-  }
   const emps=STATE.isDemo?DEMO_EMPLOYEES:STATE.empList;
+  if(STATE.user.badge&&STATE.user.role!=='admin'){
+    // Add "(Me)" entry first only if the user is not in the full employee list
+    const alreadyInList=emps.some(e=>(e.code||e.badge)===STATE.user.badge);
+    if(!alreadyInList){
+      const opt=document.createElement('option');opt.value=STATE.user.badge;opt.textContent=STATE.user.name+' (Me)';sel.appendChild(opt);
+    }
+  }
   emps.forEach(e=>{
     const opt=document.createElement('option');opt.value=e.code||e.badge;opt.textContent=e.name+' ('+(e.code||e.badge)+')';
     if((e.code||e.badge)===STATE.user.badge)opt.textContent+=' ← Me';

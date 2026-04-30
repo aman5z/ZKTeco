@@ -66,7 +66,13 @@ class TelegramNotifier:
         notify_punches: bool = True,
         notify_daily_report: bool = True,
         system_name: str = "Attendance",
+        notification_settings: dict = None,
     ):
+        # notification_settings can override individual notify_* flags when provided
+        if notification_settings:
+            notify_device_status = notification_settings.get("device_status", notify_device_status)
+            notify_punches       = notification_settings.get("punches",       notify_punches)
+            notify_daily_report  = notification_settings.get("daily_report",  notify_daily_report)
         self.bot_token = bot_token.strip() if bot_token else ""
         self.chat_id = str(chat_id).strip() if chat_id else ""
         self.enabled = enabled
@@ -204,7 +210,7 @@ class TelegramNotifier:
                     code=emp.get("code", ""), name=emp.get("name", "")))
             lines.append("")
 
-        self._send_message("\n".join(lines))
+        msg_ok = self._send_message("\n".join(lines))
 
         # ---------- 2. XLSX attachment ----------
         try:
@@ -217,7 +223,7 @@ class TelegramNotifier:
         except Exception as exc:
             logger.warning("Could not build XLSX for Telegram: %s", exc)
 
-        return True
+        return msg_ok
 
     # ------------------------------------------------------------------ #
     #  Utility                                                             #

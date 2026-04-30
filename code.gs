@@ -4,6 +4,7 @@ const ADMIN_EMAIL_CFG = "amanfaizal04@gmail.com";
 const WHATSAPP_NUMBER = "917356188530";
 const WHATSAPP_APIKEY = "YOUR_API_KEY";
 const SESSION_HOURS   = 24;
+const MAX_CACHE_TTL_SECONDS = 21600; // Google Apps Script cache max is 6 hours (21600s)
 const ALL_PERMS = ["users","dashboard","audit","storage","tokens","tokens.manage","tickets","tickets.manage"];
 
 /* ── ROUTER ── */
@@ -52,7 +53,7 @@ function login(e) {
   const hashed = hash(pass);
   for (let i = 1; i < data.length; i++) {
     if (data[i][0] === email && data[i][1] === hashed) {
-      if (data[i][6] === false) return j("Account disabled");
+      if (!data[i][6] || String(data[i][6]).toLowerCase() === "false") return j("Account disabled");
       const token  = Utilities.getUuid();
       const expiry = new Date(Date.now() + SESSION_HOURS * 3600000);
       const role   = data[i][2] || "User";
@@ -63,7 +64,7 @@ function login(e) {
         try { perms = data[i][9] ? JSON.parse(data[i][9]) : null; } catch(err) { perms = null; }
         if (!perms) perms = defaultPerms(role);
       }
-      CacheService.getScriptCache().put(token, JSON.stringify({ email, role, expiry, perms }), SESSION_HOURS * 3600);
+      CacheService.getScriptCache().put(token, JSON.stringify({ email, role, expiry, perms }), Math.min(SESSION_HOURS * 3600, MAX_CACHE_TTL_SECONDS));
       sheet.getRange(i + 1, 9).setValue(new Date());
       auditLog(email, "LOGIN", "Signed in [" + role + "]");
       return ContentService.createTextOutput(JSON.stringify({ token, role, email, perms }))
@@ -317,17 +318,16 @@ function createTicket(e) {
 }
 function updateTicket(e) {
   const u = authAny(e); if (!u) return j("Unauthorized");
-  const s = CacheService.getScriptCache().get(e.parameter.token);
-  if (!s) return j("Unauthorized");
-  const p = JSON.parse(s);
-  if (p.role!=="Admin" && !(p.perms||[]).includes("tickets.manage")) return j("Insufficient permissions");
+  if (u.role!=="Admin" && !(u.perms||[]).includes("tickets.manage")) return j("Insufficient permissions");
   const sheet = ss().getSheetByName("Tickets"), data = sheet.getDataRange().getValues();
+  if (!e.parameter.status && !e.parameter.assignedTo) return j("Nothing to update");
   for (let i = 1; i < data.length; i++) {
     if (data[i][0]===e.parameter.ticketId) {
-      if (e.parameter.status)     sheet.getRange(i+1,8).setValue(e.parameter.status);
-      if (e.parameter.assignedTo) sheet.getRange(i+1,9).setValue(e.parameter.assignedTo);
+      const changes=[];
+      if (e.parameter.status)    {sheet.getRange(i+1,8).setValue(e.parameter.status);    changes.push("status="+e.parameter.status);}
+      if (e.parameter.assignedTo){sheet.getRange(i+1,9).setValue(e.parameter.assignedTo);changes.push("assignedTo="+e.parameter.assignedTo);}
       sheet.getRange(i+1,10).setValue(new Date());
-      auditLog(u.email,"UPDATE_TICKET",e.parameter.ticketId+" → "+e.parameter.status);
+      auditLog(u.email,"UPDATE_TICKET",e.parameter.ticketId+": "+changes.join(", "));
       return j("Updated");
     }
   }
@@ -361,7 +361,7 @@ function listDriveFiles(e) {
   } catch(err){return ContentService.createTextOutput(JSON.stringify({error:err.message})).setMimeType(ContentService.MimeType.JSON);}
 }
 function deleteDriveFile(e) {
-  const u = authAny(e); if (!u) return j("Unauthorized");
+  const u = auth(e,"Admin"); if (!u) return j("Unauthorized");
   try { const f=DriveApp.getFileById(e.parameter.fileId); auditLog(u.email,"DELETE_FILE",f.getName()); f.setTrashed(true); return j("Deleted"); }
   catch(err){return j("Error: "+err.message);}
 }
@@ -376,6 +376,7 @@ function uploadDriveFile(e) {
 }
 
 function publicUploadFallback(e) {
+  const u = authAny(e); if (!u) return ContentService.createTextOutput("Error: Unauthorized");
   try {
     const name = e.parameter.name || "upload";
     const b64 = e.parameter.file || "";
@@ -408,7 +409,7 @@ function auditLog(actor,action,detail) {
   catch(err){Logger.log("Audit error: "+err.message);}
 }
 function getAuditLog(e) {
-  const u = authAny(e); if (!u) return j("Unauthorized");
+  const u = auth(e,"Admin"); if (!u) return j("Unauthorized");
   try{const s=ss().getSheetByName("AuditLog");if(!s)return ContentService.createTextOutput("[]").setMimeType(ContentService.MimeType.JSON);return ContentService.createTextOutput(JSON.stringify(s.getDataRange().getValues())).setMimeType(ContentService.MimeType.JSON);}
   catch(err){return j("Error: "+err.message);}
 }
@@ -443,8 +444,8 @@ function sendWelcomeEmail(email,displayName,role,tempPass){
 function ss(){return SpreadsheetApp.openById(SHEET_ID);}
 function j(v){return ContentService.createTextOutput(JSON.stringify(v)).setMimeType(ContentService.MimeType.JSON);}
 function hash(pw){const raw=Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,pw);return raw.map(b=>(b<0?b+256:b).toString(16).padStart(2,"0")).join("");}
-function auth(e,role){const s=CacheService.getScriptCache().get(e.parameter.token||"");if(!s)return null;const p=JSON.parse(s);if(new Date()>new Date(p.expiry))return null;if(role&&p.role!==role)return null;return p;}
-function authAny(e){const s=CacheService.getScriptCache().get(e.parameter.token||"");if(!s)return null;const p=JSON.parse(s);if(new Date()>new Date(p.expiry))return null;return p;}
+function auth(e,role){const s=CacheService.getScriptCache().get(e.parameter.token||"");if(!s)return null;try{const p=JSON.parse(s);if(new Date()>new Date(p.expiry))return null;if(role&&p.role!==role)return null;return p;}catch(err){return null;}}
+function authAny(e){const s=CacheService.getScriptCache().get(e.parameter.token||"");if(!s)return null;try{const p=JSON.parse(s);if(new Date()>new Date(p.expiry))return null;return p;}catch(err){return null;}}
 
 /* ── ONE-TIME SETUP ── */
 function authorizeNow(){const f=DriveApp.getFolderById(FOLDER_ID);Logger.log("Drive OK: "+f.getName()+" | Storage: "+(DriveApp.getStorageUsed()/1073741824).toFixed(2)+" GB");}

@@ -154,4 +154,5 @@ async function markMsgRead(id){
   }catch(e){}
 }
 // ── POLL MESSAGES LOOP ──
-setInterval(()=>{if(STATE.user && STATE.currentPage!=='messages') loadMessages()}, 60000);
+// Stored so doLogout() can clear it alongside other timers
+STATE._msgPollTimer = setInterval(()=>{if(STATE.user && STATE.currentPage!=='messages') loadMessages()}, 60000);

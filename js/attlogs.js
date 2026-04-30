@@ -5,7 +5,7 @@ async function loadAttLogs(){
   if(!f || !t) return toast('⚠ Select start and end dates');
   el('logsBody').innerHTML='<tr><td colspan="5" style="text-align:center"><div class="spinner-border" style="width:20px;height:20px;border-width:2px;border-color:var(--accent) transparent var(--accent) transparent;border-radius:50%;animation:spin 1s linear infinite;"></div> Loading...</td></tr>';
   try{
-    const r=await fetch(CFG.zkUrl+'/api/logs?from='+f+'&to='+t+'&badge='+encodeURIComponent(b), {credentials:'include'});
+    const r=await fetch(CFG.zkUrl+'/api/punches?from='+f+'&to='+t+'&badge='+encodeURIComponent(b), {credentials:'include'});
     if(r.ok){
       const d=await r.json();
       if(!d || !d.length){

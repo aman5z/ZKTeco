@@ -89,6 +89,7 @@ document.head.appendChild(iconLink);
   --yellow:#b58900;--yellow-dim:rgba(181,137,0,.1);
   --orange:#cb4b16;--purple:#6c71c4;
   --text:#fdf6e3;--text2:#eee8d5;--text3:#93a1a1;
+  --shadow:0 8px 32px rgba(0,0,0,.5);--shadow-sm:0 2px 12px rgba(0,0,0,.3);--glow:0 0 20px rgba(42,161,152,.15);
   --scrollbar:#073642;--scrollbar-thumb:#586e75;
 }
 [data-theme="matrix"] {
@@ -997,6 +998,28 @@ input:checked+.slider:before{transform:translateX(16px);background:#000}
 .voip-dot:nth-child(2) { animation-delay:.2s; }
 .voip-dot:nth-child(3) { animation-delay:.4s; }
 @keyframes voipDotAnim { 0%,60%,100%{transform:translateY(0);opacity:.6} 30%{transform:translateY(-8px);opacity:1} }
+/* ── Missing utility classes ────────────────────────────────────────────── */
+/* Device panel tab buttons */
+.tab-btn{padding:6px 16px;border:1px solid var(--border);background:var(--card);color:var(--text2);border-radius:var(--radius-sm);cursor:pointer;font-size:12px;transition:all .15s}
+.tab-btn:hover{background:var(--card2);color:var(--text)}
+.tab-btn.active{background:var(--accent);color:#000;border-color:var(--accent);font-weight:600}
+/* Admin panel panes */
+.admin-pane{padding:16px 0}
+/* IT Tools shared button/drop styles */
+.it-btn{padding:8px 16px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--card2);color:var(--text);font-size:12px;cursor:pointer;transition:background .15s}
+.it-btn:hover{background:var(--accent-dim)}
+.it-btn.g{background:var(--green-dim);color:var(--green);border-color:var(--green)}
+.it-btn.gr{background:var(--card2);color:var(--text2)}
+.it-btn:disabled{opacity:.5;cursor:not-allowed}
+.it-drop{border:2px dashed var(--border2);border-radius:var(--radius);padding:24px;text-align:center;cursor:pointer;color:var(--text2);transition:border-color .15s}
+.it-drop:hover,.it-drop.drag{border-color:var(--accent);color:var(--accent)}
+.it-star-btn{background:none;border:none;cursor:pointer;font-size:16px;color:var(--text3);padding:0 4px;transition:color .15s}
+.it-star-btn.active,.it-star-btn:hover{color:var(--yellow)}
+/* Scroll-to-top button */
+#scroll-top-btn{position:fixed;bottom:24px;right:24px;z-index:999;width:36px;height:36px;border-radius:50%;background:var(--accent);color:#000;border:none;font-size:18px;cursor:pointer;box-shadow:var(--shadow-sm);opacity:.8;transition:opacity .2s}
+#scroll-top-btn:hover{opacity:1}
+/* CSS variable aliases for IT Tools (ad.html compat) */
+:root{--sub:var(--text3);--txt:var(--text)}
 
 </style>
 </head>
@@ -2438,6 +2461,7 @@ input:checked+.slider:before{transform:translateX(16px);background:#000}
       <div class="form-group">
         <label>Recipient ID</label>
         <input type="text" class="form-control" id="newChatRecipient" list="empBadgeSuggest3" placeholder="Enter recipient badge">
+        <datalist id="empBadgeSuggest3"></datalist>
       </div>
       <div class="form-group">
         <label>Message</label>

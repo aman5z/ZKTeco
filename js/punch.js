@@ -11,7 +11,7 @@ async function loadPunchStatus(){
   try{
     const d=await zkAPI('/api/punch/status');
     el('myPunchList').innerHTML=(d.punches||[]).map(p=>`<div class="punch-entry">
-      <span class="text-mono">${p.time.substring(11,19)||'—'}</span>
+      <span class="text-mono">${(p.time||'').substring(11,19)||'—'}</span>
       <span class="tag tag-${p.status==='confirmed'?'present':p.status==='pending'?'pending':p.status==='device_ok'?'approved':'off'}">${p.status}</span>
       <span class="text-muted" style="font-size:10px">${p.source||'—'}</span>
     </div>`).join('')||'<div class="text-muted" style="font-size:11px;text-align:center">No punches today</div>';
