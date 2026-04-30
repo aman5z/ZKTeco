@@ -303,6 +303,16 @@ function quickSaveSettings(){
   lset('domain',el('qsDomain').value||'company.local');
   lset('zkUrl',el('qsZkUrl').value||'http://localhost:5000');
   lset('gasUrl',el('qsGasUrl').value||'');
+  // Also persist GAS credentials and URLs to server so they survive browser/session resets
+  const qsPayload={
+    company_name:el('qsCompany').value||'ERP Console',
+    email_domain:el('qsDomain').value||'company.local',
+    gas_url:el('qsGasUrl').value||'',
+    zk_url:el('qsZkUrl').value||'',
+  };
+  if(el('qsGasEmail')&&el('qsGasEmail').value)qsPayload.gas_email=el('qsGasEmail').value.trim();
+  if(el('qsGasPass')&&el('qsGasPass').value)qsPayload.gas_pass=el('qsGasPass').value;
+  zkAPI('/api/settings/system',{method:'POST',body:JSON.stringify(qsPayload)}).catch(()=>{});
   applyBranding();
   closeModal('settingsModal');
   toast('✅ Settings saved');
@@ -493,6 +503,8 @@ async function connectGAS(){
     if(d&&d.token){
       STATE.token=d.token;
       lset('gasToken', d.token);
+      // Persist credentials to server DB so they survive page refreshes and session loss
+      zkAPI('/api/settings/system',{method:'POST',body:JSON.stringify({gas_email:email,gas_pass:pass})}).catch(()=>{});
       if(res){res.textContent='Connected as '+email+' ['+d.role+']';res.style.color='var(--green)';}
       if(el('gasStatusDot'))el('gasStatusDot').className='sb-dot green';
       if(el('gasStatusText'))el('gasStatusText').textContent='GAS: '+d.role;
