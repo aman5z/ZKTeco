@@ -68,17 +68,27 @@ function renderDashboardData({present,absent,off,presentCount,absentCount,offCou
         let d = e.dept || 'Unknown';
         if(dStats[d]) dStats[d].p++;
     });
+    const zeroDepts = [];
     const html = Object.entries(dStats).sort().map(([d,v]) => {
         let pct = v.t > 0 ? Math.round((v.p/v.t)*100) : 0;
-        return `<div style="margin-bottom:10px">
+        const noShow = v.t > 0 && v.p === 0;
+        if(noShow) zeroDepts.push(d);
+        return `<div style="margin-bottom:10px${noShow?';background:rgba(239,68,68,.08);border-radius:6px;padding:4px 6px;border-left:3px solid var(--red)':''}">
           <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px">
-            <strong>${esc(d)}</strong><span class="text-mono">${pct}% (${v.p}/${v.t})</span>
+            <strong>${esc(d)}${noShow?' <span style="color:var(--red);font-size:10px">⚠ 0 punches</span>':''}</strong><span class="text-mono${noShow?' text-red':''}">${pct}% (${v.p}/${v.t})</span>
           </div>
           <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden">
-            <div style="height:100%;background:var(--accent);width:${pct}%;border-radius:3px"></div>
+            <div style="height:100%;background:${noShow?'var(--red)':'var(--accent)'};width:${pct||100}%;border-radius:3px;opacity:${noShow?'.35':'1'}"></div>
           </div>
         </div>`;
     }).join('');
+    if(zeroDepts.length){
+      const warn=el('dashDeptWarn');
+      if(warn){warn.textContent='⚠ No punches today: '+zeroDepts.join(', ');warn.style.display='';}
+    }else{
+      const warn=el('dashDeptWarn');
+      if(warn) warn.style.display='none';
+    }
     if(el('dashDeptAtt')) el('dashDeptAtt').innerHTML = html || '<div class="text-muted" style="font-size:12px;text-align:center;padding:10px;">No department data.</div>';
   }
 
