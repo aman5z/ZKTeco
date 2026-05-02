@@ -579,6 +579,25 @@ tr.kb-focus td{background:rgba(0,212,255,.1)!important;}
   .main{padding-bottom:0!important;}
   .col-resizer{display:none!important;}
 }
+
+/* ── EMBEDDED MODE (loaded inside d.html iframe via ?embedded=1) ── */
+html.zk-embedded .header,
+html.zk-embedded .nav,
+html.zk-embedded .cache-bar,
+html.zk-embedded .progress-overlay,
+html.zk-embedded #mobile-bottom-nav,
+html.zk-embedded #pwa-banner,
+html.zk-embedded #scroll-top-btn,
+html.zk-embedded #offline-banner {
+  display: none !important;
+}
+html.zk-embedded .main {
+  padding-top: 16px;
+}
+html.zk-embedded #app {
+  overflow-y: auto;
+  height: 100vh;
+}
 </style>
 <style id="header-mobile-fix">
 /* Header: right side never pushes over the title */
@@ -1577,6 +1596,23 @@ tr.kb-focus td{background:rgba(0,212,255,.1)!important;}
 
 <script>
 'use strict';
+// ── EMBEDDED MODE & CROSS-FRAME MESSAGING ─────────────────────────────────────
+(function(){
+  const p = new URLSearchParams(location.search);
+  if (p.get('embedded') === '1') {
+    document.documentElement.classList.add('zk-embedded');
+    window._zkEmbedded = true;
+  }
+  window._zkStartSection = p.get('section') || null;
+})();
+window.addEventListener('message', function(e) {
+  if (!e.data || e.data.zkAction !== 'showSection') return;
+  const sec = e.data.section;
+  if (sec && document.getElementById('sec-' + sec)) {
+    showSection(sec, null);
+  }
+});
+
 // ── STATE ────────────────────────────────────────────────────────────────────
 let currentUser=null, todayData=null, historyData=null, currentTab='absent';
 let empData=null, machineData={}, currentEmpBadge=null, currentEmpTab='list';
@@ -1696,6 +1732,11 @@ function onLoginSuccess(user){
     document.getElementById('hist-from').value=today;
     const tabParam=new URLSearchParams(window.location.search).get('tab');
     if(tabParam){const btn=document.querySelector(`[data-sec="${tabParam}"]`);if(btn)btn.click();}
+    // If loaded embedded with a specific section, navigate there
+    if(window._zkStartSection){
+      const _sec=window._zkStartSection; window._zkStartSection=null;
+      setTimeout(()=>{ const btn=document.querySelector('[data-sec="'+_sec+'"]'); if(btn)btn.click(); else showSection(_sec,null); },150);
+    }
   }
   // Load config (inactivity limits etc)
   api('/api/config').then(cfg=>{

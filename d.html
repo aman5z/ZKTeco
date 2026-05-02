@@ -450,6 +450,10 @@ body::before{
 .page{display:none;flex:1;overflow-y:auto;padding:20px 24px;animation:fadeUp .2s ease;flex-direction:column}
 #page-terminal{padding:0;overflow:hidden}
 #page-terminal.active{display:flex;flex-direction:column}
+#page-zk-main{padding:0;overflow:hidden}
+#page-zk-main.active{display:flex;flex-direction:column}
+.zk-subnav{background:var(--surface);border-bottom:1px solid var(--border);padding:6px 12px;display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;align-items:center}
+.zk-subnav .btn.active{background:var(--accent-dim);color:var(--accent);border-color:var(--accent)}
 .page.active{display:block}
 
 /* ── PAGE HEADER ── */
@@ -1202,10 +1206,30 @@ input:checked+.slider:before{transform:translateX(16px);background:#000}
         <span class="sb-icon">🔧</span> Settings
       </div>
 
-      <div class="sb-section">External</div>
-      <div class="sb-item" onclick="window.open('/zk','_blank')">
-        <span class="sb-icon">🖥</span> ZKTeco Dashboard
+      <div class="sb-section">ZK Attendance</div>
+      <div class="sb-item" onclick="showZkSection('overview')" id="sb-zk-overview" data-zksec="overview">
+        <span class="sb-icon">📊</span> Overview
       </div>
+      <div class="sb-item" onclick="showZkSection('today')" id="sb-zk-today" data-zksec="today">
+        <span class="sb-icon">📅</span> Today
+      </div>
+      <div class="sb-item" onclick="showZkSection('history')" id="sb-zk-history" data-zksec="history">
+        <span class="sb-icon">🗂</span> History
+      </div>
+      <div class="sb-item" onclick="showZkSection('employees')" id="sb-zk-employees" data-zksec="employees">
+        <span class="sb-icon">👥</span> Employees
+      </div>
+      <div class="sb-item" onclick="showZkSection('devices')" id="sb-zk-devices" data-zksec="devices">
+        <span class="sb-icon">🖥</span> Devices
+      </div>
+      <div class="sb-item" onclick="showZkSection('punch')" id="sb-zk-punch" data-zksec="punch">
+        <span class="sb-icon">⏱</span> Punch
+      </div>
+      <div class="sb-item" onclick="showZkSection('admin')" id="sb-zk-admin" data-zksec="admin" data-perm="admin">
+        <span class="sb-icon">⚙</span> Admin
+      </div>
+
+      <div class="sb-section">External</div>
       <div class="sb-item" onclick="window.open('/ad','_blank')">
         <span class="sb-icon">🏢</span> AD Console
       </div>
@@ -2213,6 +2237,24 @@ input:checked+.slider:before{transform:translateX(16px);background:#000}
             onload="if(typeof termIframeLoaded !== 'undefined') termIframeLoaded()" onerror="if(typeof termIframeError !== 'undefined') termIframeError()"></iframe>
         </div>
       </div>
+
+      <!-- ── ZK ATTENDANCE (embedded iframe) ── -->
+      <div class="page" id="page-zk-main">
+        <div class="zk-subnav">
+          <button class="btn btn-secondary btn-sm" onclick="showZkSection('overview')"  id="zknav-overview">📊 Overview</button>
+          <button class="btn btn-secondary btn-sm" onclick="showZkSection('today')"     id="zknav-today">📅 Today</button>
+          <button class="btn btn-secondary btn-sm" onclick="showZkSection('history')"   id="zknav-history">🗂 History</button>
+          <button class="btn btn-secondary btn-sm" onclick="showZkSection('employees')" id="zknav-employees">👥 Employees</button>
+          <button class="btn btn-secondary btn-sm" onclick="showZkSection('devices')"   id="zknav-devices">🖥 Devices</button>
+          <button class="btn btn-secondary btn-sm" onclick="showZkSection('punch')"     id="zknav-punch">⏱ Punch</button>
+          <button class="btn btn-secondary btn-sm" onclick="showZkSection('admin')"     id="zknav-admin" data-perm="admin">⚙ Admin</button>
+          <button class="btn btn-secondary btn-sm" style="margin-left:auto" onclick="window.open('/zk','_blank')" title="Open in new tab">⧉</button>
+        </div>
+        <iframe id="zkMainFrame" src="/zk?embedded=1"
+          style="flex:1;width:100%;border:none;display:block;min-height:0"
+          onload="window._zkFrameReady=true;if(window._zkPendingSection){window._doSendZkSection(window._zkPendingSection);window._zkPendingSection=null;}"></iframe>
+      </div>
+
     </div><!-- /main-content -->
   </div><!-- /app-body -->
 
@@ -2482,6 +2524,40 @@ input:checked+.slider:before{transform:translateX(16px);background:#000}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="js/ittools.js"></script>
 <script src="js/init.js"></script>
+
+<script>
+// ── ZK ATTENDANCE: section navigation via embedded iframe ─────────────────
+window._zkFrameReady   = false;
+window._zkPendingSection = null;
+
+window._doSendZkSection = function(section) {
+  const iframe = document.getElementById('zkMainFrame');
+  if (!iframe) return;
+  if (window._zkFrameReady) {
+    try { iframe.contentWindow.postMessage({ zkAction: 'showSection', section }, '*'); } catch(e) {}
+  } else {
+    window._zkPendingSection = section;
+  }
+};
+
+function showZkSection(section) {
+  // Navigate to the embedded ZK page
+  showPage('zk-main');
+
+  // Highlight sidebar item
+  document.querySelectorAll('[data-zksec]').forEach(function(el) { el.classList.remove('active'); });
+  var sb = document.getElementById('sb-zk-' + section);
+  if (sb) sb.classList.add('active');
+
+  // Highlight the in-page subnav button
+  document.querySelectorAll('#page-zk-main .zk-subnav .btn').forEach(function(b) { b.classList.remove('active'); });
+  var nb = document.getElementById('zknav-' + section);
+  if (nb) nb.classList.add('active');
+
+  // Tell the iframe to show the right section
+  window._doSendZkSection(section);
+}
+</script>
 
 <button id="scroll-top-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="Back to top">↑</button>
 
