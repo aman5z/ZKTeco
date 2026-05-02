@@ -515,14 +515,18 @@ async function connectGAS(){
     }else{
       // Show specific error if available, otherwise generic message
       const errMsg=d&&d.error?d.error:'check credentials';
-      if(res){res.textContent='Login failed: '+errMsg;res.style.color='var(--red)';}
+      if(res){res.textContent='Login failed: '+errMsg+' — verify credentials in your GAS Users sheet';res.style.color='var(--red)';}
       // If the password we tried was the masked/stored one, it's wrong — clear it
       if(isMasked){
         lset('gasPass','');
         if(el('sGasPass'))el('sGasPass').value='';
-        if(res){res.textContent+=' — stored password cleared, please re-enter';res.style.color='var(--red)';}
+        if(res){res.textContent+=' (stored password cleared, please re-enter)';res.style.color='var(--red)';}
         // Also clear from server DB to break the restoration loop on next page reload
         _clearGASPass();
+      }else{
+        // Fresh-typed password was wrong — clear it from localStorage so it doesn't
+        // get used by tryGASLogin on the next page load
+        lset('gasPass','');
       }
     }
   }catch(e){if(res){res.textContent=e.message;res.style.color='var(--red)';}}

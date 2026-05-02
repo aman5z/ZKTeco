@@ -206,9 +206,14 @@ async function saveTelegramSettings(){
   };
   if(token)payload.bot_token=token;
   try{
-    await zkAPI('/api/settings/telegram',{method:'POST',body:JSON.stringify(payload)});
-    if(res){res.textContent='✅ Telegram settings saved';res.style.color='var(--green)';}
-    toast('✅ Telegram settings saved');
+    const d=await zkAPI('/api/settings/telegram',{method:'POST',body:JSON.stringify(payload)});
+    if(d&&d.warning){
+      if(res){res.textContent='⚠️ Saved but not active: '+d.warning;res.style.color='var(--yellow)';}
+      toast('⚠️ Telegram settings saved (init issue)');
+    }else{
+      if(res){res.textContent='✅ Telegram settings saved';res.style.color='var(--green)';}
+      toast('✅ Telegram settings saved');
+    }
     loadTelegramSettings();
   }catch(e){
     if(res){res.textContent='❌ '+e.message;res.style.color='var(--red)';}

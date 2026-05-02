@@ -693,18 +693,21 @@ DEPT_WORKDAYS_FALLBACK = {
 DEFAULT_WORKDAYS = {6, 0, 1, 2, 3}
 
 # ── Telegram notifier (loaded lazily after DB is ready) ────────────────────────
-_tg_notifier = None   # type: ignore
+_tg_notifier   = None   # type: ignore
+_tg_init_error = None   # last error from _init_telegram(), exposed in test/save responses
 
 def _init_telegram():
     """Instantiate TelegramNotifier from settings.ini / DB overrides."""
-    global _tg_notifier
+    global _tg_notifier, _tg_init_error
     try:
         from telegram_notifier import TelegramNotifier
         token   = _cfg('telegram', 'bot_token',   '') or db_manager.get_setting('tg_bot_token',   '')
         chat_id = _cfg('telegram', 'chat_id',     '') or db_manager.get_setting('tg_chat_id',     '')
         if not token or not chat_id:
+            missing = ("bot_token, " if not token else "") + ("chat_id" if not chat_id else "")
             print("[Telegram] No token/chat_id configured — notifications disabled"); sys.stdout.flush()
-            _tg_notifier = None
+            _tg_notifier   = None
+            _tg_init_error = "Missing: {0}".format(missing.strip(", "))
             return
         # Prefer DB settings (written by UI) over settings.ini defaults
         def _tg_bool(db_key, ini_key, default='1'):
@@ -721,9 +724,19 @@ def _init_telegram():
             notify_daily_report=_tg_bool('tg_notify_daily_report', 'notify_daily_report'),
             system_name="Attendance",
         )
+        _tg_init_error = None
         print("[Telegram] Notifier ready (chat {0})".format(chat_id)); sys.stdout.flush()
     except Exception as exc:
-        print("[Telegram] Init failed: {0}".format(exc)); sys.stdout.flush()
+        _tg_notifier   = None
+        # Classify error for a safe, user-friendly summary (no raw stack trace in responses).
+        exc_type = type(exc).__name__
+        if "ImportError" in exc_type or "ModuleNotFoundError" in exc_type:
+            _tg_init_error = "Required package missing (httpx). Run: pip install httpx"
+        elif "ConnectionError" in exc_type or "Timeout" in exc_type:
+            _tg_init_error = "Network error connecting to Telegram API"
+        else:
+            _tg_init_error = "Initialization failed ({0})".format(exc_type)
+        print("[Telegram] Init failed ({0}): {1}".format(exc_type, exc)); sys.stdout.flush()
 
 # ==============================================================================
 #  FLASK APP
@@ -2354,12 +2367,17 @@ def db_resolve_unknown():
         conn = get_db()
         now  = datetime.now().isoformat()
         try:
-            # Re-attribute punch records stored under the raw UID to the real badge
+            # Re-attribute punch records stored under the raw UID to the real badge.
+            # Re-attribute across ALL devices (not just the specified one) because the
+            # same employee may have punched on multiple devices with the same UID, and
+            # all those records should be corrected at once.
+            punches_updated = 0
             if uid != badge:
                 conn.execute(
-                    "UPDATE punches SET badge=? WHERE badge=? AND device_ip=?",
-                    (badge, uid, ip)
+                    "UPDATE punches SET badge=? WHERE badge=?",
+                    (badge, uid)
                 )
+                punches_updated = conn.execute("SELECT changes()").fetchone()[0]
 
             # Create or update the employee record
             existing = conn.execute(
@@ -2388,10 +2406,10 @@ def db_resolve_unknown():
             conn.close()
 
         write_audit(session.get("username","?"), "RESOLVE_UNKNOWN",
-                    "uid={0} ip={1} -> badge={2} name={3} dept={4}".format(
-                        uid, ip, badge, name, dept),
+                    "uid={0} ip={1} -> badge={2} name={3} dept={4} punches_updated={5}".format(
+                        uid, ip, badge, name, dept, punches_updated),
                     request.remote_addr)
-        return jsonify({"ok": True})
+        return jsonify({"ok": True, "punches_updated": punches_updated})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -2444,12 +2462,14 @@ def db_auto_map_unknown():
                 # Update UID->badge cache
                 _uid_to_badge_cache[uid] = badge
 
-                # Re-attribute any punch records stored under the raw UID
+                # Re-attribute any punch records stored under the raw UID across ALL devices.
+                # An employee may have been enrolled on multiple devices with the same UID,
+                # so we correct all punch records that are stored under the raw UID at once.
                 punches_updated = 0
                 if uid != badge:
                     conn.execute(
-                        "UPDATE punches SET badge=? WHERE badge=? AND device_ip=?",
-                        (badge, uid, ip)
+                        "UPDATE punches SET badge=? WHERE badge=?",
+                        (badge, uid)
                     )
                     punches_updated = conn.execute(
                         "SELECT changes()"
@@ -4107,7 +4127,10 @@ def save_telegram_settings():
                            "enabled={0}".format(data.get("enabled")), request.remote_addr)
     # Re-init notifier with new settings
     _init_telegram()
-    return jsonify({"ok": True})
+    resp = {"ok": True}
+    if _tg_notifier is None:
+        resp["warning"] = _not_configured_msg()
+    return jsonify(resp)
 
 def _ensure_telegram_initialized():
     """Re-initialize Telegram notifier if not active (e.g. after server restart)."""
@@ -4116,12 +4139,21 @@ def _ensure_telegram_initialized():
         _init_telegram()
     return _tg_notifier
 
+def _not_configured_msg():
+    """Human-readable reason why Telegram is not configured."""
+    if _tg_init_error:
+        return "Telegram not configured: {0}".format(_tg_init_error)
+    return "Telegram not configured. Set bot_token and chat_id first."
+
 @app.route("/api/settings/telegram/test", methods=["POST"])
 @admin_required
 def test_telegram():
     notifier = _ensure_telegram_initialized()
     if not notifier:
-        return jsonify({"ok": False, "message": "Telegram not configured. Set bot_token and chat_id first."})
+        return jsonify({"ok": False, "message": _not_configured_msg()})
+    # Distinguish "disabled" from actual send failure
+    if not notifier.enabled:
+        return jsonify({"ok": False, "message": "Telegram notifications are disabled. Enable them first."})
     ok = notifier.test_connection()
     return jsonify({"ok": ok, "message": "Test message sent!" if ok else "Send failed — check token and chat_id."})
 
@@ -4131,7 +4163,7 @@ def test_telegram_report():
     """Send a test daily report via Telegram (using today's data)."""
     notifier = _ensure_telegram_initialized()
     if not notifier:
-        return jsonify({"ok": False, "message": "Telegram not configured."})
+        return jsonify({"ok": False, "message": _not_configured_msg()})
     try:
         report_data = _get_absent_data_for_date(date.today())
     except Exception as exc:
