@@ -701,8 +701,9 @@ def _init_telegram():
     global _tg_notifier, _tg_init_error
     try:
         from telegram_notifier import TelegramNotifier
-        token   = _cfg('telegram', 'bot_token',   '') or db_manager.get_setting('tg_bot_token',   '')
-        chat_id = _cfg('telegram', 'chat_id',     '') or db_manager.get_setting('tg_chat_id',     '')
+        # Prefer DB (saved via Admin UI) over settings.ini default
+        token   = db_manager.get_setting('tg_bot_token', '') or _cfg('telegram', 'bot_token',   '')
+        chat_id = db_manager.get_setting('tg_chat_id',   '') or _cfg('telegram', 'chat_id',     '')
         if not token or not chat_id:
             missing = ("bot_token, " if not token else "") + ("chat_id" if not chat_id else "")
             print("[Telegram] No token/chat_id configured — notifications disabled"); sys.stdout.flush()
@@ -1456,13 +1457,14 @@ def set_device_names():
 def get_system_settings():
     try:
         g = db_manager.get_setting
+        is_admin = session.get("role") == "admin"
         return jsonify({
             "company_name": g("company_name", "GAES"),
             "email_domain":  g("email_domain",  "aman5z.in"),
             "company_logo":  g("company_logo",  ""),
             "gas_url":        g("gas_url",   ""),
-            "gas_email":      g("gas_email",  ""),
-            "gas_pass":       g("gas_pass",   ""),
+            "gas_email":      g("gas_email",  "") if is_admin else "",
+            "gas_pass":       g("gas_pass",   "") if is_admin else "",
             "zk_url":         g("zk_url",    ""),
             "term_ws_url":    g("term_ws_url", ""),
         })

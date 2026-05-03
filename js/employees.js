@@ -75,7 +75,7 @@ function selectEmpQuick(code,name,dept){selectEmployee(code)}
 async function toggleEmpActive(badge,active){
   if(STATE.isDemo){toast('🎮 Demo');return}
   try{
-    await zkAPI('/api/employee/'+badge+'/active',{method:'POST'});
+    await zkAPI('/api/employee/'+badge+'/active',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({active:!!active})});
     toast('✅ Employee status updated');loadEmployees();
   }catch(e){toast('❌ '+e.message)}
 }
