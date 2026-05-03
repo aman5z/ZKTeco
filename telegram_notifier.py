@@ -35,13 +35,21 @@ logger = logging.getLogger("ZKTeco.Telegram")
 # ---------------------------------------------------------------------------
 
 def _post(url: str, **kwargs) -> Optional[dict]:
-    """POST to Telegram API; return parsed JSON or None on error."""
+    """POST to Telegram API; return parsed JSON or None on network error.
+
+    Non-200 responses are also returned as dicts (containing ``ok=false`` and
+    a ``description`` field) so callers can surface the exact Telegram error.
+    """
     try:
         with httpx.Client(timeout=15) as client:
             resp = client.post(url, **kwargs)
-        if resp.status_code == 200:
-            return resp.json()
-        logger.warning("Telegram API %s: status %s  %s", url, resp.status_code, resp.text[:200])
+        try:
+            data = resp.json()
+        except ValueError:
+            data = {}
+        if resp.status_code != 200:
+            logger.warning("Telegram API %s: status %s  %s", url, resp.status_code, resp.text[:200])
+        return data
     except Exception as exc:
         logger.warning("Telegram send error: %s", exc)
     return None
@@ -229,14 +237,44 @@ class TelegramNotifier:
     #  Utility                                                             #
     # ------------------------------------------------------------------ #
 
-    def test_connection(self) -> bool:
-        """Send a test message to verify the bot is working."""
+    def test_connection(self) -> tuple:
+        """Send a test message to verify the bot is working.
+
+        Returns ``(ok: bool, message: str)`` where *message* is either a
+        success note or the exact error description returned by the Telegram
+        API (e.g. "Unauthorized", "Bad Request: chat not found").
+        """
+        if not self._ok():
+            if not self.bot_token:
+                return False, "Bot token not set"
+            if not self.chat_id:
+                return False, "Chat ID not set"
+            return False, "Telegram notifications are disabled"
+
+        # Step 1 — validate the token before attempting to send
+        me = _post(self._base + "/getMe")
+        if me is None:
+            return False, "Could not reach Telegram API — check network connectivity"
+        if not me.get("ok"):
+            desc = me.get("description", "Unknown error")
+            return False, "Invalid bot token: {0}".format(desc)
+
+        # Step 2 — try to send the test message
         msg = (
             "🧪 <b>{sys} — Test</b>\n"
             "📅 {ts}\n"
             "✅ Telegram bot is connected and working."
         ).format(sys=self.system_name, ts=datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-        return self._send_message(msg)
+        with self._lock:
+            result = _post(
+                self._base + "/sendMessage",
+                json={"chat_id": self.chat_id, "text": msg, "parse_mode": "HTML"},
+            )
+        if result is None:
+            return False, "Could not reach Telegram API — check network connectivity"
+        if not result.get("ok"):
+            return False, result.get("description", "Send failed")
+        return True, "Test message sent successfully"
 
     # Kept for backward compatibility with old code
     def send_message_sync(self, message: str, parse_mode: str = "HTML") -> bool:
