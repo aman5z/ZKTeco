@@ -169,6 +169,7 @@
   .queue-item.priority { border-left: 3px solid var(--priority); background: var(--priority-light); }
   .queue-item.called { opacity: 0.5; }
   .queue-item.done { opacity: 0.35; }
+  .queue-item.skipped { opacity: 0.45; }
 
   .q-token {
     font-family: 'DM Mono', monospace; font-size: 20px; font-weight: 500;
@@ -321,8 +322,8 @@
         body: new URLSearchParams({action:'login', email, password:pass})
       });
       const data = await res.json();
-      if (typeof data === 'string' && data !== 'true') {
-        showLoginErr(data); return;
+      if (!data || !data.success) {
+        showLoginErr(data && data.error ? data.error : 'Invalid credentials'); return;
       }
       token = data.token;
       dept  = d;
@@ -428,7 +429,7 @@
       const issuedAt = r[8] ? new Date(r[8]) : null;
       const waitMins = issuedAt ? Math.round((Date.now() - issuedAt)/60000) : '';
       return `
-        <div class="queue-item ${r[7]==='PRIORITY'?'priority':''} ${r[7]==='SKIPPED'?'done':''}">
+        <div class="queue-item ${r[7]==='PRIORITY'?'priority':''} ${r[7]==='SKIPPED'?'skipped':''}">
           <div class="q-token">${r[0]}</div>
           <div class="q-info">
             <div class="q-name">${r[3] || 'Walk-in'}</div>

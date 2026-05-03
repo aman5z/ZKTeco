@@ -1,15 +1,20 @@
 const SHEET_ID        = "1sbKGknuz6xB1xdohKec4dvnb6Ifvnb6BeDdeklocMgo";
 const FOLDER_ID       = "1rgi0M0glLySObvzjVV5B1-NCPkpdul9p";
 const ADMIN_EMAIL_CFG = "amanfaizal04@gmail.com";
+const APP_DOMAIN      = "aman5z.in";
 const SESSION_HOURS   = 24;
 const ALL_PERMS = ["users","dashboard","audit","storage","tokens","tokens.manage","tickets","tickets.manage"];
 
 /* ── ROUTER ── */
-function doPost(e) {
+// Shared dispatcher — handles both GET (JSONP from HTML pages) and POST (fetch from staff/display pages)
+function dispatch(e) {
   const a = e.parameter.action;
   if (a==="getCountersPublic") return getCountersPublic(e);
   if (!a && e.parameter.file && e.parameter.name) return publicUploadFallback(e);
+  // Allow getQueue via GET for polling (?page=queue&dept=...)
+  if (!a && e.parameter.page==="queue")  return getQueue(e);
   if (a==="login")             return login(e);
+  if (a==="validate")          return validateToken(e);
   if (a==="getUsers")          return getUsers(e);
   if (a==="addUser")           return addUser(e);
   if (a==="deleteUser")        return deleteUser(e);
@@ -37,26 +42,23 @@ function doPost(e) {
   if (a==="getDashboard")      return getDashboard(e);
   if (a==="getAuditLog")       return getAuditLog(e);
   if (a==="terminal")          return terminalCommand(e);
-  // ── NEW QUEUE ACTIONS ──
+  // ── QUEUE ACTIONS ──
   if (a==="issueToken")        return issueToken(e);
   if (a==="getQueue")          return getQueue(e);
   if (a==="callNext")          return callNext(e);
   if (a==="updateTokenStatus") return updateTokenStatus(e);
+  if (!a) return j("System Online — " + APP_DOMAIN);
   return j("Invalid action");
 }
 
-function doGet(e) {
-  const a = e.parameter.action;
-  if (a==="getCountersPublic") return getCountersPublic(e);
-  // Allow getQueue via GET for polling (token-form.html polls with ?page=queue&dept=...)
-  if (a==="getQueue" || e.parameter.page==="queue") return getQueue(e);
-  return j("System Online — aman5z.in");
-}
+function doPost(e) { return dispatch(e); }
+function doGet(e)  { return dispatch(e); }
 
 /* ── LOGIN ──
-   Users cols: 0=Email 1=Hash 2=Role 3=Phone 4=DisplayName 5=Dept 6=Enabled 7=Modified 8=LastLogon 9=Permissions */
+   Users cols: 0=Email 1=Hash 2=Role 3=Phone 4=DisplayName 5=Dept 6=Enabled 7=Modified 8=LastLogon 9=Permissions
+   Accepts both "email" and "username" parameters so that JSONP-based pages (which send "username") work too. */
 function login(e) {
-  const email  = (e.parameter.email || "").trim();
+  const email  = (e.parameter.email || e.parameter.username || "").trim();
   const pass   = e.parameter.password || "";
   const sheet  = ss().getSheetByName("Users");
   const data   = sheet.getDataRange().getValues();
@@ -77,16 +79,28 @@ function login(e) {
       CacheService.getScriptCache().put(token, JSON.stringify({ email, role, expiry, perms }), SESSION_HOURS * 3600);
       sheet.getRange(i + 1, 9).setValue(new Date());
       auditLog(email, "LOGIN", "Signed in [" + role + "]");
-      return ContentService.createTextOutput(JSON.stringify({ token, role, email, perms }))
-        .setMimeType(ContentService.MimeType.JSON);
+      return j({ success: true, token, role, email, perms });
     }
   }
   auditLog(email, "LOGIN_FAILED", "Invalid credentials attempt");
-  return j("Invalid credentials");
+  return j({ success: false, error: "Invalid credentials" });
 }
 function defaultPerms(role) {
   if (role === "Technician") return ["dashboard","tokens","tokens.manage","tickets","tickets.manage","storage"];
   return ["tokens","tickets"];
+}
+
+/* ── VALIDATE (called by TokenCounterSystem.html to check a stored session token) ── */
+function validateToken(e) {
+  const s = CacheService.getScriptCache().get(e.parameter.token || "");
+  if (!s) return j({ valid: false });
+  try {
+    const p = JSON.parse(s);
+    if (new Date() > new Date(p.expiry)) return j({ valid: false });
+    return j({ valid: true, role: p.role, email: p.email, perms: p.perms });
+  } catch(err) {
+    return j({ valid: false });
+  }
 }
 
 /* ── USERS ── */
@@ -613,7 +627,7 @@ function tableOutput(data,where){if(!data||data.length<2)return j("No data");con
 
 /* ── WELCOME EMAIL ── */
 function sendWelcomeEmail(email,displayName,role,tempPass){
-  try{MailApp.sendEmail({to:email,name:"ZKTECO",subject:"🏢 Welcome to aman5z.in — Your Account is Ready",body:"Account: "+email+"\nPassword: "+tempPass+"\nRole: "+role+"\n\nChange your password after first login.",htmlBody:"<div style='font-family:Segoe UI,Arial;max-width:520px;margin:0 auto;'><div style='background:linear-gradient(135deg,#1e4fa0,#0f3580);padding:20px;border-radius:6px 6px 0 0;text-align:center;'><h1 style='color:#fff;font-size:18px;margin:0;'>🏢 Welcome to aman5z.in</h1></div><div style='background:#f9fafb;padding:18px;border:1px solid #e5e7eb;'><p style='color:#374151;margin:0 0 12px;'>Hi <strong>"+displayName+"</strong>, your account is ready:</p><table style='font-size:13px;width:100%;border-collapse:collapse;'><tr style='background:#e8edf8;'><td style='padding:8px 10px;font-weight:600;'>Account</td><td style='padding:8px 10px;'>"+email+"</td></tr><tr><td style='padding:8px 10px;font-weight:600;'>Password</td><td style='padding:8px 10px;font-family:monospace;'>"+tempPass+"</td></tr><tr style='background:#e8edf8;'><td style='padding:8px 10px;font-weight:600;'>Role</td><td style='padding:8px 10px;'>"+role+"</td></tr></table><p style='margin:12px 0 0;background:#fff3cd;color:#856404;padding:8px;border-radius:4px;font-size:12px;'>⚠️ Change your password after first login.</p></div></div>"});
+  try{MailApp.sendEmail({to:email,name:"ZKTECO",subject:"🏢 Welcome to "+APP_DOMAIN+" — Your Account is Ready",body:"Account: "+email+"\nPassword: "+tempPass+"\nRole: "+role+"\n\nChange your password after first login.",htmlBody:"<div style='font-family:Segoe UI,Arial;max-width:520px;margin:0 auto;'><div style='background:linear-gradient(135deg,#1e4fa0,#0f3580);padding:20px;border-radius:6px 6px 0 0;text-align:center;'><h1 style='color:#fff;font-size:18px;margin:0;'>🏢 Welcome to "+APP_DOMAIN+"</h1></div><div style='background:#f9fafb;padding:18px;border:1px solid #e5e7eb;'><p style='color:#374151;margin:0 0 12px;'>Hi <strong>"+displayName+"</strong>, your account is ready:</p><table style='font-size:13px;width:100%;border-collapse:collapse;'><tr style='background:#e8edf8;'><td style='padding:8px 10px;font-weight:600;'>Account</td><td style='padding:8px 10px;'>"+email+"</td></tr><tr><td style='padding:8px 10px;font-weight:600;'>Password</td><td style='padding:8px 10px;font-family:monospace;'>"+tempPass+"</td></tr><tr style='background:#e8edf8;'><td style='padding:8px 10px;font-weight:600;'>Role</td><td style='padding:8px 10px;'>"+role+"</td></tr></table><p style='margin:12px 0 0;background:#fff3cd;color:#856404;padding:8px;border-radius:4px;font-size:12px;'>⚠️ Change your password after first login.</p></div></div>"});
   }catch(err){Logger.log("Welcome email failed: "+err.message);}
 }
 
@@ -624,7 +638,8 @@ function hash(pw){const raw=Utilities.computeDigest(Utilities.DigestAlgorithm.SH
 function auth(e,role){const s=CacheService.getScriptCache().get(e.parameter.token||"");if(!s)return null;const p=JSON.parse(s);if(new Date()>new Date(p.expiry))return null;if(role&&p.role!==role)return null;return p;}
 function authAny(e){const s=CacheService.getScriptCache().get(e.parameter.token||"");if(!s)return null;const p=JSON.parse(s);if(new Date()>new Date(p.expiry))return null;return p;}
 
-/* ── getCountersPublic (original, for tokendisplay.html / TokenCtr.html) ── */
+/* ── getCountersPublic (original, for tokendisplay.html / TokenCtr.html) ──
+   Supports JSONP (with callback param) and plain JSON (without callback). */
 function getCountersPublic(e) {
   ensureCountersSheet();
   const sheet = ss().getSheetByName("Counters");
@@ -636,14 +651,18 @@ function getCountersPublic(e) {
       data[i][4] = p;
     }
   }
-  return ContentService.createTextOutput(
-    e.parameter.callback + "(" + JSON.stringify(data) + ")"
-  ).setMimeType(ContentService.MimeType.JAVASCRIPT);
+  const cb = e.parameter.callback;
+  if (!cb) {
+    return ContentService.createTextOutput(JSON.stringify(data))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  return ContentService.createTextOutput(cb + "(" + JSON.stringify(data) + ")")
+    .setMimeType(ContentService.MimeType.JAVASCRIPT);
 }
 
 /* ── ONE-TIME SETUP ── */
 function authorizeNow(){const f=DriveApp.getFolderById(FOLDER_ID);Logger.log("Drive OK: "+f.getName()+" | Storage: "+(DriveApp.getStorageUsed()/1073741824).toFixed(2)+" GB");}
-function authorizeMailNow(){MailApp.sendEmail({to:ADMIN_EMAIL_CFG,name:"ZKTECO",subject:"✅ Mail Auth Test",body:"Mail authorized for aman5z.in"});Logger.log("Sent to: "+ADMIN_EMAIL_CFG);}
+function authorizeMailNow(){MailApp.sendEmail({to:ADMIN_EMAIL_CFG,name:"ZKTECO",subject:"✅ Mail Auth Test",body:"Mail authorized for "+APP_DOMAIN});Logger.log("Sent to: "+ADMIN_EMAIL_CFG);}
 
 /* Run this once from Apps Script editor to create the Tokens sheet */
 function setupTokensSheet() {

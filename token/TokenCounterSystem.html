@@ -60,7 +60,6 @@ body{
   position:sticky;
   top:0;
   z-index:100;
-  position:relative;
 }
 #clock{
   font-size:15px;
@@ -260,7 +259,7 @@ th{color:var(--subtext);font-size:13px;text-transform:uppercase;}
         <div id="printTime"></div>
       </div>
       <button onclick="printTicket()">Print Token</button>
-      <a href="https://aman5z.github.io/Token_System/TokenDisplay.html" target="_blank"><button type="button" style="background:#8b5cf6;margin-left:8px;">📺 View Display</button></a>
+      <a href="tokendisplay.html" target="_blank"><button type="button" style="background:#8b5cf6;margin-left:8px;">📺 View Display</button></a>
     </div>
 
     <div class="card">
@@ -278,7 +277,7 @@ th{color:var(--subtext);font-size:13px;text-transform:uppercase;}
 </div>
 
 <script>
-const API = "https://script.google.com/macros/s/AKfycbzkzFg2BMA0b-bOU-O7Zg9knhfL9-1Pw5QRdHk8NePBYPmZwQjEJeIeTjA9NJc0zcly1A/exec";
+const API = "https://script.google.com/macros/s/AKfycbyxhqVi3BPh_ksWRJ5n9TWLGBK8HbEhxqqwqV4Bfft7VJJlGxRWI9PPS4Zhw_aKN1TOQQ/exec";
 
 let authToken = localStorage.getItem("token");
 let role = "";
@@ -362,7 +361,7 @@ function login(){
     password:document.getElementById("password").value
   }, function(d){
     hideSpinner();
-    if(d && d.success){
+    if(d && d.token){
       const remember = document.getElementById("rememberMe").checked;
       if(remember){
         localStorage.setItem("token", d.token);
