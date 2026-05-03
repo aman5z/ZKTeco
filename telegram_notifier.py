@@ -6,6 +6,7 @@ Features:
   1. Device online / offline alerts
   2. Per-punch notifications (IP, time, employee code)
   3. Daily 08:10 absent report (XLSX document, grouped by dept category)
+  4. Bot command handler: device status, sync, reboot, search
 
 Configuration (settings.ini [telegram] section):
   bot_token   = <your bot token>
@@ -23,7 +24,7 @@ import logging
 import threading
 import time
 from datetime import datetime
-from typing import Optional, Dict
+from typing import Optional, Dict, Callable, Any
 
 import httpx
 
@@ -53,6 +54,15 @@ def _post(url: str, **kwargs) -> Optional[dict]:
     except Exception as exc:
         logger.warning("Telegram send error: %s", exc)
     return None
+
+
+def _format_punch_time(ts: str) -> str:
+    """Convert 'YYYY-MM-DD HH:MM:SS' to 'DD-Mon-YYYY HH:MM:SSAM/PM'."""
+    try:
+        dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+        return dt.strftime("%d-%b-%Y %I:%M:%S%p")
+    except Exception:
+        return ts
 
 
 # ---------------------------------------------------------------------------
@@ -163,11 +173,11 @@ class TelegramNotifier:
         if not (self._ok() and self.notify_punches):
             return False
         msg = (
-            "👆 <b>Punch recorded</b>\n"
-            "🪪 <b>{badge}</b> — {name}\n"
-            "📡 Device: <code>{ip}</code>\n"
-            "🕐 {ts}"
-        ).format(badge=badge, name=name or "Unknown", ip=ip, ts=ts)
+            "🪪 <b>{badge}</b> : {name}\n"
+            "🕐 {ts}\n"
+            "📡 Device: <code>{ip}</code>"
+        ).format(badge=badge, name=name or "Unknown", ip=ip,
+                 ts=_format_punch_time(ts))
         return self._send_message(msg)
 
     # ------------------------------------------------------------------ #
@@ -282,8 +292,405 @@ class TelegramNotifier:
 
 
 # ---------------------------------------------------------------------------
-#  XLSX builder (no server imports — self-contained)
+#  TelegramBotHandler — interactive command handler (long-polling)
 # ---------------------------------------------------------------------------
+
+class TelegramBotHandler:
+    """
+    Polls Telegram for incoming messages in a background thread and handles
+    bot commands typed in the configured chat:
+
+      device status  — show all device online/offline, punches today, user count
+      device sync    — sync time and users across all devices
+      device reboot  — present inline keyboard to pick a device (or all)
+      device search  — prompt for employee name/badge and report punch status
+    """
+
+    def __init__(
+        self,
+        bot_token: str,
+        chat_id: str,
+        get_today_fn: Callable = None,
+        get_device_ips_fn: Callable = None,
+        get_device_names_fn: Callable = None,
+        get_device_status_fn: Callable = None,
+        sync_clocks_fn: Callable = None,
+        sync_users_fn: Callable = None,
+        reboot_device_fn: Callable = None,
+        search_employee_fn: Callable = None,
+    ):
+        self.bot_token = bot_token.strip() if bot_token else ""
+        self.chat_id = str(chat_id).strip() if chat_id else ""
+        self._base = "https://api.telegram.org/bot{0}".format(self.bot_token)
+        self._offset = 0
+        self._running = False
+        self._thread = None
+        # Conversation state per chat_id: {"state": str}
+        self._state: Dict[str, dict] = {}
+
+        # Callbacks supplied by the host (server.py)
+        self.get_today_fn = get_today_fn
+        self.get_device_ips_fn = get_device_ips_fn
+        self.get_device_names_fn = get_device_names_fn
+        self.get_device_status_fn = get_device_status_fn
+        self.sync_clocks_fn = sync_clocks_fn
+        self.sync_users_fn = sync_users_fn
+        self.reboot_device_fn = reboot_device_fn
+        self.search_employee_fn = search_employee_fn
+
+    def start(self):
+        if not self.bot_token or not self.chat_id:
+            logger.warning("[BotHandler] Cannot start — missing bot_token or chat_id")
+            return
+        self._running = True
+        self._thread = threading.Thread(target=self._poll_loop, name="TgBotPoll", daemon=True)
+        self._thread.start()
+        logger.info("[BotHandler] Long-poll thread started (chat %s)", self.chat_id)
+
+    def stop(self):
+        self._running = False
+
+    # ------------------------------------------------------------------ #
+    #  Low-level helpers                                                   #
+    # ------------------------------------------------------------------ #
+
+    def _get_updates(self) -> Optional[dict]:
+        try:
+            with httpx.Client(timeout=35) as client:
+                resp = client.post(
+                    self._base + "/getUpdates",
+                    json={
+                        "offset": self._offset,
+                        "timeout": 30,
+                        "allowed_updates": ["message", "callback_query"],
+                    },
+                )
+                return resp.json()
+        except Exception as exc:
+            logger.warning("[BotHandler] getUpdates error: %s", exc)
+            return None
+
+    def _send(self, chat_id: str, text: str, reply_markup: dict = None):
+        if len(text) > 4000:
+            text = text[:3990] + "\n…"
+        payload: Dict[str, Any] = {
+            "chat_id": chat_id,
+            "text": text,
+            "parse_mode": "HTML",
+        }
+        if reply_markup:
+            payload["reply_markup"] = reply_markup
+        _post(self._base + "/sendMessage", json=payload)
+
+    def _answer_callback(self, callback_query_id: str, text: str = ""):
+        _post(
+            self._base + "/answerCallbackQuery",
+            json={"callback_query_id": callback_query_id, "text": text},
+        )
+
+    def _edit_message_text(self, chat_id: str, message_id: int, text: str):
+        _post(
+            self._base + "/editMessageText",
+            json={"chat_id": chat_id, "message_id": message_id,
+                  "text": text, "parse_mode": "HTML"},
+        )
+
+    # ------------------------------------------------------------------ #
+    #  Polling loop                                                        #
+    # ------------------------------------------------------------------ #
+
+    def _poll_loop(self):
+        while self._running:
+            try:
+                data = self._get_updates()
+                if data and data.get("ok"):
+                    for update in data.get("result", []):
+                        self._offset = update["update_id"] + 1
+                        try:
+                            self._handle_update(update)
+                        except Exception as exc:
+                            logger.warning("[BotHandler] Update handling error: %s", exc)
+                elif data is not None and not data.get("ok"):
+                    logger.warning("[BotHandler] getUpdates not ok: %s", data.get("description", ""))
+                    time.sleep(10)
+            except Exception as exc:
+                logger.warning("[BotHandler] Poll loop error: %s", exc)
+                time.sleep(5)
+
+    # ------------------------------------------------------------------ #
+    #  Update dispatcher                                                   #
+    # ------------------------------------------------------------------ #
+
+    def _handle_update(self, update: dict):
+        # Callback queries (inline keyboard button presses)
+        if "callback_query" in update:
+            cq = update["callback_query"]
+            chat_id = str(cq["message"]["chat"]["id"])
+            if chat_id != self.chat_id:
+                return
+            self._handle_callback(cq)
+            return
+
+        if "message" not in update:
+            return
+        msg = update["message"]
+        chat_id = str(msg["chat"]["id"])
+        if chat_id != self.chat_id:
+            return
+
+        raw_text = (msg.get("text") or "").strip()
+        text_lower = raw_text.lower()
+
+        # Handle multi-step conversation states first
+        state_info = self._state.get(chat_id, {})
+        if state_info.get("state") == "awaiting_search_query":
+            self._state.pop(chat_id, None)
+            self._handle_search_query(chat_id, raw_text)
+            return
+
+        # Single-step commands
+        if text_lower in ("device status", "/device_status"):
+            self._cmd_device_status(chat_id)
+        elif text_lower in ("device sync", "/device_sync"):
+            self._cmd_device_sync(chat_id)
+        elif text_lower in ("device reboot", "/device_reboot"):
+            self._cmd_device_reboot_ask(chat_id)
+        elif text_lower in ("device search", "/device_search"):
+            self._cmd_device_search_ask(chat_id)
+        elif text_lower in ("help", "/help", "/start"):
+            self._cmd_help(chat_id)
+
+    # ------------------------------------------------------------------ #
+    #  Callback query handler (inline keyboard)                            #
+    # ------------------------------------------------------------------ #
+
+    def _handle_callback(self, cq: dict):
+        chat_id = str(cq["message"]["chat"]["id"])
+        data = cq.get("data", "")
+        message_id = cq["message"]["message_id"]
+
+        if not data.startswith("reboot:"):
+            self._answer_callback(cq["id"])
+            return
+
+        target = data[len("reboot:"):]
+        self._answer_callback(cq["id"], "Sending reboot command…")
+
+        if target == "ALL":
+            ips = self.get_device_ips_fn() if self.get_device_ips_fn else []
+            self._edit_message_text(
+                chat_id, message_id,
+                "🔄 Rebooting <b>all {n} devices</b>…".format(n=len(ips))
+            )
+            lines = ["🔴 <b>Reboot All Devices</b>", ""]
+            for ip in ips:
+                try:
+                    if self.reboot_device_fn:
+                        self.reboot_device_fn(ip)
+                    lines.append("✅ <code>{0}</code> — reboot command sent".format(ip))
+                except Exception as exc:
+                    lines.append("❌ <code>{0}</code>: {1}".format(ip, str(exc)[:60]))
+            lines.append("\n⏳ Devices will be offline for ~30 seconds.")
+            self._send(chat_id, "\n".join(lines))
+        else:
+            ip = target
+            self._edit_message_text(
+                chat_id, message_id,
+                "🔄 Rebooting <code>{0}</code>…".format(ip)
+            )
+            try:
+                if self.reboot_device_fn:
+                    self.reboot_device_fn(ip)
+                self._send(
+                    chat_id,
+                    "✅ Reboot command sent to <code>{0}</code>.\n"
+                    "⏳ Device will be offline for ~30 seconds.".format(ip),
+                )
+            except Exception as exc:
+                self._send(
+                    chat_id,
+                    "❌ Reboot failed for <code>{0}</code>:\n{1}".format(ip, str(exc)[:120]),
+                )
+
+    # ------------------------------------------------------------------ #
+    #  Command handlers                                                    #
+    # ------------------------------------------------------------------ #
+
+    def _cmd_device_status(self, chat_id: str):
+        today_data = {}
+        if self.get_today_fn:
+            try:
+                today_data = self.get_today_fn() or {}
+            except Exception:
+                pass
+
+        devices = today_data.get("devices", [])
+
+        # Fall back to a live check if cache is empty
+        if not devices and self.get_device_status_fn:
+            try:
+                devices = self.get_device_status_fn() or []
+            except Exception:
+                pass
+
+        if not devices:
+            self._send(chat_id, "⚠️ No device data available.")
+            return
+
+        names = {}
+        if self.get_device_names_fn:
+            try:
+                names = self.get_device_names_fn() or {}
+            except Exception:
+                pass
+
+        lines = ["📡 <b>Device Status</b>", ""]
+        for d in devices:
+            ip = d.get("ip", "?")
+            name = d.get("name") or names.get(ip, "")
+            online = d.get("online", False)
+            punches = d.get("punches_today", 0)
+            users = d.get("user_count", "?")
+            icon = "🟢" if online else "🔴"
+            header = "{icon} <code>{ip}</code>".format(icon=icon, ip=ip)
+            if name:
+                header += " — {0}".format(name)
+            lines.append(header)
+            if online:
+                lines.append(
+                    "   👤 Users: {u}  |  👆 Punches today: {p}".format(u=users, p=punches)
+                )
+            else:
+                lines.append("   <i>Offline</i>")
+
+        online_count = sum(1 for d in devices if d.get("online", False))
+        total_punches = sum(d.get("punches_today", 0) for d in devices)
+        lines.append("")
+        lines.append(
+            "📊 {on}/{tot} online  |  Total punches today: {tp}".format(
+                on=online_count, tot=len(devices), tp=total_punches
+            )
+        )
+        self._send(chat_id, "\n".join(lines))
+
+    def _cmd_device_sync(self, chat_id: str):
+        self._send(chat_id, "⏳ Starting device sync (time + users)…")
+
+        clock_results = []
+        user_results = []
+        errors = []
+
+        if self.sync_clocks_fn:
+            try:
+                clock_results = self.sync_clocks_fn() or []
+            except Exception as exc:
+                errors.append("Clock sync error: " + str(exc)[:80])
+
+        if self.sync_users_fn:
+            try:
+                user_results = self.sync_users_fn() or []
+            except Exception as exc:
+                errors.append("User sync error: " + str(exc)[:80])
+
+        lines = ["🔄 <b>Device Sync Complete</b>", "", "<b>⏰ Clock Sync:</b>"]
+        if clock_results:
+            for r in clock_results:
+                if r.get("ok"):
+                    lines.append(
+                        "  ✅ <code>{ip}</code> → {t}".format(ip=r["ip"], t=r.get("synced_to", "?"))
+                    )
+                else:
+                    lines.append(
+                        "  ❌ <code>{ip}</code>: {e}".format(ip=r["ip"], e=r.get("error", "Failed")[:60])
+                    )
+        else:
+            lines.append("  ⚠️ No clock results")
+
+        if user_results:
+            lines.append("")
+            lines.append("<b>👥 User Sync:</b>")
+            for r in user_results:
+                ip = r.get("ip", "?")
+                if r.get("ok"):
+                    added = r.get("added", 0)
+                    note = r.get("note", "")
+                    lines.append(
+                        "  ✅ <code>{ip}</code>: {added} users pushed{note}".format(
+                            ip=ip, added=added,
+                            note=" ({0})".format(note) if note else ""
+                        )
+                    )
+                else:
+                    lines.append(
+                        "  ❌ <code>{ip}</code>: {e}".format(ip=ip, e=r.get("error", "Failed")[:60])
+                    )
+
+        for err in errors:
+            lines.append("⚠️ " + err)
+
+        self._send(chat_id, "\n".join(lines))
+
+    def _cmd_device_reboot_ask(self, chat_id: str):
+        ips = []
+        if self.get_device_ips_fn:
+            try:
+                ips = self.get_device_ips_fn() or []
+            except Exception:
+                pass
+
+        if not ips:
+            self._send(chat_id, "⚠️ No devices configured.")
+            return
+
+        names = {}
+        if self.get_device_names_fn:
+            try:
+                names = self.get_device_names_fn() or {}
+            except Exception:
+                pass
+
+        keyboard = []
+        for ip in ips:
+            name = names.get(ip, "")
+            label = "{0} ({1})".format(name, ip) if name else ip
+            keyboard.append([{"text": label, "callback_data": "reboot:{0}".format(ip)}])
+        keyboard.append([{"text": "⚡ All Devices", "callback_data": "reboot:ALL"}])
+
+        self._send(
+            chat_id,
+            "🔴 <b>Device Reboot</b>\nSelect a device to reboot:",
+            reply_markup={"inline_keyboard": keyboard},
+        )
+
+    def _cmd_device_search_ask(self, chat_id: str):
+        self._state[chat_id] = {"state": "awaiting_search_query"}
+        self._send(chat_id, "🔍 <b>Employee Search</b>\nEnter employee name or badge number:")
+
+    def _handle_search_query(self, chat_id: str, query: str):
+        if not query:
+            self._send(chat_id, "⚠️ Empty query — please try again with <code>device search</code>.")
+            return
+        if self.search_employee_fn:
+            try:
+                result = self.search_employee_fn(query)
+                self._send(chat_id, result)
+            except Exception as exc:
+                self._send(chat_id, "❌ Search error: {0}".format(str(exc)[:100]))
+        else:
+            self._send(chat_id, "⚠️ Search is not available right now.")
+
+    def _cmd_help(self, chat_id: str):
+        text = (
+            "📋 <b>Available Commands</b>\n\n"
+            "• <code>device status</code> — Show all device statuses\n"
+            "• <code>device sync</code> — Sync time &amp; users across all devices\n"
+            "• <code>device reboot</code> — Reboot a device (choose from list)\n"
+            "• <code>device search</code> — Check if an employee punched today\n"
+        )
+        self._send(chat_id, text)
+
+
+
 
 _CATEGORY_MAP = {
     "TEACHING":       "Teachers",

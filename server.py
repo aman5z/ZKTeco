@@ -694,13 +694,213 @@ DEFAULT_WORKDAYS = {6, 0, 1, 2, 3}
 
 # ── Telegram notifier (loaded lazily after DB is ready) ────────────────────────
 _tg_notifier   = None   # type: ignore
+_tg_bot_handler = None  # type: ignore
 _tg_init_error = None   # last error from _init_telegram(), exposed in test/save responses
 
-def _init_telegram():
-    """Instantiate TelegramNotifier from settings.ini / DB overrides."""
-    global _tg_notifier, _tg_init_error
+
+# ---------------------------------------------------------------------------
+#  Telegram bot command callbacks (called from TelegramBotHandler)
+# ---------------------------------------------------------------------------
+
+def _bot_get_today():
+    """Return the current cached today-data dict."""
+    with _cache_lock:
+        return dict(_cache.get("today") or {})
+
+
+def _bot_get_device_ips():
+    return list(DEVICE_IPS)
+
+
+def _bot_get_device_names():
+    return dict(_device_names)
+
+
+def _bot_get_device_status():
+    """Live device status check (used as fallback when cache is empty)."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    results = []
     try:
-        from telegram_notifier import TelegramNotifier
+        with ThreadPoolExecutor(max_workers=min(10, len(DEVICE_IPS) or 1)) as ex:
+            futures = {ex.submit(_check_device_status, ip): ip for ip in DEVICE_IPS}
+            for f in as_completed(futures, timeout=12):
+                try:
+                    r = f.result()
+                    r["name"] = _device_names.get(r["ip"], "")
+                    results.append(r)
+                except Exception:
+                    pass
+    except Exception:
+        pass
+    return results
+
+
+def _bot_sync_clocks():
+    """Sync all device clocks; returns list of result dicts."""
+    import concurrent.futures
+
+    def _sync_one(ip):
+        zk_conn = None
+        try:
+            from zk import ZK
+            zk_conn = ZK(ip, port=DEVICE_PORT, timeout=15, verbose=False).connect()
+            now = datetime.now()
+            zk_conn.set_time(now)
+            return {"ip": ip, "ok": True, "synced_to": now.strftime("%Y-%m-%d %H:%M:%S")}
+        except Exception as exc:
+            return {"ip": ip, "ok": False, "error": str(exc)}
+        finally:
+            if zk_conn:
+                try: zk_conn.disconnect()
+                except: pass
+
+    results = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(DEVICE_IPS) or 1)) as ex:
+        for f in concurrent.futures.as_completed(
+            [ex.submit(_sync_one, ip) for ip in DEVICE_IPS]
+        ):
+            results.append(f.result())
+    return results
+
+
+def _bot_sync_users():
+    """Sync users across all devices; returns list of per-device result dicts."""
+    import concurrent.futures
+
+    def fetch_users(ip):
+        zk_conn = None
+        try:
+            from zk import ZK
+            zk_conn = ZK(ip, port=DEVICE_PORT, timeout=15, verbose=False).connect()
+            users = zk_conn.get_users()
+            return ip, [
+                {"uid": str(u.user_id), "name": u.name or "",
+                 "privilege": u.privilege, "password": u.password or "",
+                 "group_id": u.group_id or ""}
+                for u in users
+            ]
+        except Exception:
+            return ip, None
+        finally:
+            if zk_conn:
+                try: zk_conn.disconnect()
+                except: pass
+
+    all_users = {}
+    online_ips = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(DEVICE_IPS) or 1)) as ex:
+        for f in concurrent.futures.as_completed([ex.submit(fetch_users, ip) for ip in DEVICE_IPS]):
+            ip, users = f.result()
+            all_users[ip] = users
+            if users is not None:
+                online_ips.append(ip)
+
+    if not online_ips:
+        return [{"ip": ip, "ok": False, "error": "Offline"} for ip in DEVICE_IPS]
+
+    master = {}
+    for ip in online_ips:
+        for u in (all_users.get(ip) or []):
+            if u["uid"] not in master:
+                master[u["uid"]] = u
+
+    def push_users(ip):
+        existing = {u["uid"] for u in (all_users.get(ip) or [])}
+        missing = [u for uid, u in master.items() if uid not in existing]
+        if not missing:
+            return {"ip": ip, "ok": True, "added": 0, "note": "Already up to date"}
+        zk_conn = None
+        added = 0
+        try:
+            from zk import ZK
+            zk_conn = ZK(ip, port=DEVICE_PORT, timeout=30, verbose=False).connect()
+            zk_conn.disable_device()
+            for u in missing:
+                try:
+                    zk_conn.set_user(uid=int(u["uid"]), name=u["name"],
+                                     privilege=u.get("privilege", 0),
+                                     password=u.get("password", ""),
+                                     group_id=u.get("group_id", ""))
+                    added += 1
+                except Exception:
+                    pass
+            zk_conn.enable_device()
+            return {"ip": ip, "ok": True, "added": added,
+                    "note": "{0} new users pushed".format(added)}
+        except Exception as exc:
+            return {"ip": ip, "ok": False, "error": str(exc)}
+        finally:
+            if zk_conn:
+                try: zk_conn.enable_device(); zk_conn.disconnect()
+                except: pass
+
+    results = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(online_ips) or 1)) as ex:
+        for f in concurrent.futures.as_completed([ex.submit(push_users, ip) for ip in online_ips]):
+            results.append(f.result())
+    return results
+
+
+def _bot_reboot_device(ip: str):
+    """Reboot a single device by IP."""
+    if ip not in DEVICE_IPS:
+        raise ValueError("Unknown device: {0}".format(ip))
+    zk_conn = None
+    try:
+        from zk import ZK
+        zk_conn = ZK(ip, port=DEVICE_PORT, timeout=15, verbose=False).connect()
+        zk_conn.restart()
+    finally:
+        if zk_conn:
+            try: zk_conn.disconnect()
+            except: pass
+
+
+def _bot_search_employee(query: str) -> str:
+    """Search today's cache for an employee by name or badge; return formatted HTML."""
+    today_data = {}
+    with _cache_lock:
+        today_data = dict(_cache.get("today") or {})
+
+    present = today_data.get("present", [])
+    absent = today_data.get("absent", [])
+    q = query.strip().lower()
+
+    hits_present = [
+        e for e in present
+        if q in e.get("name", "").lower() or q == e.get("code", "").lower()
+    ]
+    hits_absent = [
+        e for e in absent
+        if q in e.get("name", "").lower() or q == e.get("code", "").lower()
+    ]
+
+    if not hits_present and not hits_absent:
+        return "🔍 No employee found matching <b>{0}</b>".format(query)
+
+    lines = ["🔍 <b>Search: {0}</b>".format(query), ""]
+    for emp in hits_present:
+        lines.append(
+            "✅ <b>{name}</b> ({code}) — {dept}\n   Punched today".format(
+                name=emp.get("name", ""), code=emp.get("code", ""),
+                dept=emp.get("dept", "")
+            )
+        )
+    for emp in hits_absent:
+        lines.append(
+            "❌ <b>{name}</b> ({code}) — {dept}\n   Not punched today".format(
+                name=emp.get("name", ""), code=emp.get("code", ""),
+                dept=emp.get("dept", "")
+            )
+        )
+    return "\n".join(lines)
+
+
+def _init_telegram():
+    """Instantiate TelegramNotifier and TelegramBotHandler from settings.ini / DB overrides."""
+    global _tg_notifier, _tg_bot_handler, _tg_init_error
+    try:
+        from telegram_notifier import TelegramNotifier, TelegramBotHandler
         # Prefer DB (saved via Admin UI) over settings.ini default
         token   = db_manager.get_setting('tg_bot_token', '') or _cfg('telegram', 'bot_token',   '')
         chat_id = db_manager.get_setting('tg_chat_id',   '') or _cfg('telegram', 'chat_id',     '')
@@ -708,6 +908,7 @@ def _init_telegram():
             missing = ("bot_token, " if not token else "") + ("chat_id" if not chat_id else "")
             print("[Telegram] No token/chat_id configured — notifications disabled"); sys.stdout.flush()
             _tg_notifier   = None
+            _tg_bot_handler = None
             _tg_init_error = "Missing: {0}".format(missing.strip(", "))
             return
         # Prefer DB settings (written by UI) over settings.ini defaults
@@ -725,10 +926,31 @@ def _init_telegram():
             notify_daily_report=_tg_bool('tg_notify_daily_report', 'notify_daily_report'),
             system_name="Attendance",
         )
+        # Stop old bot handler if running (e.g. after settings update)
+        if _tg_bot_handler:
+            try:
+                _tg_bot_handler.stop()
+            except Exception:
+                pass
+        _tg_bot_handler = TelegramBotHandler(
+            bot_token=token,
+            chat_id=chat_id,
+            get_today_fn=_bot_get_today,
+            get_device_ips_fn=_bot_get_device_ips,
+            get_device_names_fn=_bot_get_device_names,
+            get_device_status_fn=_bot_get_device_status,
+            sync_clocks_fn=_bot_sync_clocks,
+            sync_users_fn=_bot_sync_users,
+            reboot_device_fn=_bot_reboot_device,
+            search_employee_fn=_bot_search_employee,
+        )
+        _tg_bot_handler.start()
         _tg_init_error = None
         print("[Telegram] Notifier ready (chat {0})".format(chat_id)); sys.stdout.flush()
+        print("[Telegram] Bot command handler started"); sys.stdout.flush()
     except Exception as exc:
         _tg_notifier   = None
+        _tg_bot_handler = None
         # Classify error for a safe, user-friendly summary (no raw stack trace in responses).
         exc_type = type(exc).__name__
         if "ImportError" in exc_type or "ModuleNotFoundError" in exc_type:
@@ -739,6 +961,7 @@ def _init_telegram():
         else:
             _tg_init_error = "Initialization failed ({0})".format(exc_type)
         print("[Telegram] Init failed ({0}): {1}".format(exc_type, exc)); sys.stdout.flush()
+
 
 # ==============================================================================
 #  FLASK APP
