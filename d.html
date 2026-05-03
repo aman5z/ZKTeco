@@ -238,7 +238,7 @@ body[data-glass="true"] .header, body[data-glass="true"] .sidebar {
   border-bottom: 1px solid rgba(255,255,255,0.05);
   box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
 }
-body[data-glass="true"] .card, body[data-glass="true"] #loginScreen .login-wrap, body[data-glass="true"] .settings-section {
+body[data-glass="true"] .card, body[data-glass="true"] .settings-section {
   background: color-mix(in srgb, var(--card) 60%, transparent) !important;
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -281,71 +281,13 @@ body::before{
   pointer-events:none;z-index:0;
 }
 
-/* ═══════════════════════════════════════════════════════════
-   LOGIN SCREEN
-═══════════════════════════════════════════════════════════ */
-#loginScreen{
-  position:fixed;inset:0;background:var(--bg);
-  display:flex;align-items:center;justify-content:center;
-  z-index:9999;flex-direction:column;gap:16px;
-}
-.login-wrap{
-  width:380px;max-width:95vw;
-  background:var(--card);border:1px solid var(--border2);
-  border-radius:16px;overflow:hidden;
-  box-shadow:var(--shadow),var(--glow);
-}
-.login-header{
-  background:linear-gradient(135deg,#0a1628,#111e35);
-  padding:28px 28px 22px;text-align:center;
-  border-bottom:1px solid var(--border2);
-  position:relative;overflow:hidden;
-}
-.login-header::before{
-  content:'';position:absolute;inset:0;
-  background:radial-gradient(ellipse at 50% 0%,rgba(0,200,255,.12),transparent 70%);
-}
-.login-logo{
-  width:52px;height:52px;
-  background:linear-gradient(135deg,var(--accent),#0077aa);
-  border-radius:12px;display:flex;align-items:center;justify-content:center;
-  font-size:24px;margin:0 auto 12px;position:relative;z-index:1;
-}
-.login-header h1{font-size:17px;font-weight:700;letter-spacing:.3px;position:relative;z-index:1}
-.login-header p{font-size:11px;color:var(--text2);margin-top:3px;position:relative;z-index:1;font-family:var(--mono)}
-.login-body{padding:22px 24px}
-.login-body label{display:block;font-size:10px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.7px;margin-bottom:5px}
-.login-body input{
-  width:100%;background:var(--surface);border:1px solid var(--border2);
-  border-radius:var(--radius-sm);padding:10px 12px;color:var(--text);
-  font-family:var(--mono);font-size:13px;outline:none;
-  transition:border-color .2s,box-shadow .2s;
-}
-.login-body input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
-.login-field{margin-bottom:14px}
-.login-btn{
-  width:100%;padding:11px;
-  background:var(--accent);color:#000;
-  font-family:var(--sans);font-size:13px;font-weight:700;
-  border:none;border-radius:var(--radius-sm);
-  letter-spacing:.3px;transition:opacity .2s,transform .1s;
-  margin-top:4px;
-}
-.login-btn:hover{opacity:.9}
-.login-btn:active{transform:scale(.99)}
-.login-err{
-  background:var(--red-dim);border:1px solid rgba(255,68,85,.3);
-  border-radius:var(--radius-sm);padding:8px 12px;
-  font-size:12px;color:var(--red);margin-bottom:12px;display:none;
-}
-.login-footer{padding:12px 24px;border-top:1px solid var(--border);text-align:center;font-size:11px;color:var(--text3)}
-.login-footer a{color:var(--accent);cursor:pointer}
+
 
 /* ═══════════════════════════════════════════════════════════
    APP SHELL
 ═══════════════════════════════════════════════════════════ */
-#appShell{display:none;flex:1;overflow:hidden;flex-direction:column;position:relative;z-index:1}
-#appShell.visible{display:flex;animation: fadeUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards}
+#appShell{display:flex;flex:1;overflow:hidden;flex-direction:column;position:relative;z-index:1}
+#appShell.visible{animation: fadeUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards}
 
 /* ── HEADER ── */
 .header{
@@ -1032,47 +974,14 @@ input:checked+.slider:before{transform:translateX(16px);background:#000}
 <div id="toast"></div>
 
 <!-- ═══════════════════════════════════════════════════════════
-     LOGIN SCREEN
-════════════════════════════════════════════════════════════ -->
-<div id="loginScreen">
-  <div id="announcementBanner" style="display:none;position:absolute;top:0;width:100%;background:var(--accent-dim);color:var(--text);padding:12px;text-align:center;border-bottom:1px solid var(--accent);z-index:9999;font-size:13px;box-shadow:var(--shadow-sm)">
-    <span style="margin-right:8px">📢</span><span id="announcementText" style="font-weight:600"></span>
-  </div>
-  <div class="login-wrap">
-    <div class="login-header">
-      <div class="login-logo" id="loginLogoIcon">🏢</div>
-      <h1 id="loginCompanyName">ERP Console</h1>
-      <p id="loginDomainLabel" style="font-family:var(--mono)">Integrated Management System</p>
-      <span id="serverStatusDot" class="sb-dot muted" style="position:absolute;top:16px;right:16px;width:10px;height:10px;transition:background 0.3s;" title="Server Offline"></span>
-      <button id="pwaInstallBtn" class="btn btn-secondary btn-sm" style="display:none;position:absolute;bottom:12px;right:12px;padding:4px 8px;font-size:10px;background:var(--accent-dim);color:var(--accent);border-color:var(--accent);">Install App</button>
-    </div>
-    <form class="login-body" onsubmit="doLogin(); return false;">
-      <div class="login-err" id="loginErr"></div>
-      <div class="login-field">
-        <label>Employee ID / Username</label>
-        <input type="text" id="loginUser" placeholder="Enter your badge number" autocomplete="username">
-      </div>
-      <div class="login-field">
-        <label>Password <span style="color:var(--text3);font-weight:400;text-transform:none;letter-spacing:0">(default: your Employee ID)</span></label>
-        <input type="password" id="loginPass" placeholder="Password" autocomplete="current-password">
-      </div>
-      <div style="margin-bottom:14px; display:flex; flex-direction:row; align-items:center;">
-        <input type="checkbox" id="rememberMe" style="width:auto; margin:0; margin-right:6px;">
-        <label for="rememberMe" style="margin:0; font-size:12px; font-weight:500; text-transform:none; cursor:pointer;">Remember Me</label>
-      </div>
-      <button class="login-btn" type="submit">Sign In</button>
-    </form>
-    <div class="login-footer">
-      <a onclick="doDemo()">🎮 Enter Demo Mode</a> &nbsp;·&nbsp;
-      <a onclick="openSettings()">⚙ Settings</a>
-    </div>
-  </div>
-</div>
-
-<!-- ═══════════════════════════════════════════════════════════
      APP SHELL
 ════════════════════════════════════════════════════════════ -->
 <div id="appShell">
+
+  <!-- Announcement Banner -->
+  <div id="announcementBanner" style="display:none;position:relative;width:100%;background:var(--accent-dim);color:var(--text);padding:12px;text-align:center;border-bottom:1px solid var(--accent);z-index:9999;font-size:13px;box-shadow:var(--shadow-sm)">
+    <span style="margin-right:8px">📢</span><span id="announcementText" style="font-weight:600"></span>
+  </div>
 
   <!-- HEADER -->
   <div class="header">

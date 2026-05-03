@@ -131,9 +131,9 @@ function el(id){return document.getElementById(id)}
 function applyBranding(){
   const co=CFG.company,em=CFG.logoEmoji,dom=CFG.domain;
   document.title=co+' — ERP';
-  el('loginLogoIcon').textContent=em;
-  el('loginCompanyName').textContent=co;
-  el('loginDomainLabel').textContent=dom;
+  if(el('loginLogoIcon'))el('loginLogoIcon').textContent=em;
+  if(el('loginCompanyName'))el('loginCompanyName').textContent=co;
+  if(el('loginDomainLabel'))el('loginDomainLabel').textContent=dom;
   el('hLogoIcon').textContent=em;
   el('hCompanyName').textContent=co;
   el('hDomain').textContent=dom;
@@ -677,7 +677,7 @@ async function onLoginSuccess(user){
   document.documentElement.setAttribute('data-theme',user.theme||CFG.theme);
 
   // Update header
-  el('loginScreen').style.display='none';
+  if(el('loginScreen'))el('loginScreen').style.display='none';
   el('appShell').classList.add('visible');
 
   const avatars = ['👨‍💼','👩‍💼','👨‍💻','👩‍💻','🦸‍♂️','🦸‍♀️','🧙‍♂️','🧙‍♀️','🥷','🤖'];
@@ -759,9 +759,9 @@ function doLogout(){
   }
   STATE={...STATE,user:null,token:null,isDemo:false};
   el('appShell').classList.remove('visible');
-  el('loginScreen').style.display='flex';
-  el('loginPass').value='';
-  el('loginErr').style.display='none';
+  if(el('loginScreen'))el('loginScreen').style.display='flex';
+  if(el('loginPass'))el('loginPass').value='';
+  if(el('loginErr'))el('loginErr').style.display='none';
   el('demoIndicator').style.display='none';
   clearInterval(STATE._clockTimer);
   clearInterval(STATE._pollTimer);
