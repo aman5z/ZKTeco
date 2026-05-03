@@ -303,7 +303,7 @@ class TelegramBotHandler:
       device status  — show all device online/offline, punches today, user count
       device sync    — sync time and users across all devices
       device reboot  — present inline keyboard to pick a device (or all)
-      device search  — prompt for employee name/badge and report punch status
+      user search    — prompt for employee name/badge and report punch status
     """
 
     def __init__(
@@ -455,7 +455,7 @@ class TelegramBotHandler:
             self._cmd_device_sync(chat_id)
         elif text_lower in ("device reboot", "/device_reboot"):
             self._cmd_device_reboot_ask(chat_id)
-        elif text_lower in ("device search", "/device_search"):
+        elif text_lower in ("user search", "/user_search"):
             self._cmd_device_search_ask(chat_id)
         elif text_lower in ("help", "/help", "/start"):
             self._cmd_help(chat_id)
@@ -668,7 +668,7 @@ class TelegramBotHandler:
 
     def _handle_search_query(self, chat_id: str, query: str):
         if not query:
-            self._send(chat_id, "⚠️ Empty query — please try again with <code>device search</code>.")
+            self._send(chat_id, "⚠️ Empty query — please try again with <code>user search</code>.")
             return
         if self.search_employee_fn:
             try:
@@ -685,7 +685,7 @@ class TelegramBotHandler:
             "• <code>device status</code> — Show all device statuses\n"
             "• <code>device sync</code> — Sync time &amp; users across all devices\n"
             "• <code>device reboot</code> — Reboot a device (choose from list)\n"
-            "• <code>device search</code> — Check if an employee punched today\n"
+            "• <code>user search</code> — Check if an employee punched today\n"
         )
         self._send(chat_id, text)
 
