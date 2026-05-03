@@ -4186,8 +4186,8 @@ def test_telegram():
     # Distinguish "disabled" from actual send failure
     if not notifier.enabled:
         return jsonify({"ok": False, "message": "Telegram notifications are disabled. Enable them first."})
-    ok = notifier.test_connection()
-    return jsonify({"ok": ok, "message": "Test message sent!" if ok else "Send failed — check token and chat_id."})
+    ok, detail = notifier.test_connection()
+    return jsonify({"ok": ok, "message": detail})
 
 @app.route("/api/settings/telegram/test-report", methods=["POST"])
 @admin_required
