@@ -857,7 +857,7 @@ def _bot_reboot_device(ip: str):
 
 
 def _bot_search_employee(query: str) -> str:
-    """Search today's cache for an employee by name or badge; return formatted HTML."""
+    """Search today's cache for an employee by name or badge; return formatted HTML with punch timings."""
     today_data = {}
     with _cache_lock:
         today_data = dict(_cache.get("today") or {})
@@ -878,22 +878,36 @@ def _bot_search_employee(query: str) -> str:
     if not hits_present and not hits_absent:
         return "🔍 No employee found matching <b>{0}</b>".format(query)
 
-    lines = ["🔍 <b>Search: {0}</b>".format(query), ""]
+    today = date.today()
+    lines = ["🔍 <b>Search: {0}</b>  —  {1}".format(query, today.strftime("%d %b %Y")), ""]
+
     for emp in hits_present:
-        lines.append(
-            "✅ <b>{name}</b> ({code}) — {dept}\n   Punched today".format(
-                name=emp.get("name", ""), code=emp.get("code", ""),
-                dept=emp.get("dept", "")
-            )
-        )
+        badge = emp.get("code", "")
+        name  = emp.get("name", "")
+        dept  = emp.get("dept", "")
+        lines.append("✅ <b>{name}</b> ({badge}) — {dept}".format(
+            name=name, badge=badge, dept=dept))
+        records = get_punch_records_for_employee(badge, today, today)
+        if records:
+            for r in records:
+                t_str = r.get("punch_time", "")
+                try:
+                    t_str = datetime.strptime(t_str, "%Y-%m-%d %H:%M:%S").strftime("%I:%M:%S %p")
+                except Exception:
+                    pass
+                lines.append("   🕐 {0}".format(t_str))
+        else:
+            lines.append("   🕐 Punched today (no detailed records)")
+        lines.append("")
+
     for emp in hits_absent:
-        lines.append(
-            "❌ <b>{name}</b> ({code}) — {dept}\n   Not punched today".format(
-                name=emp.get("name", ""), code=emp.get("code", ""),
-                dept=emp.get("dept", "")
-            )
-        )
-    return "\n".join(lines)
+        badge = emp.get("code", "")
+        name  = emp.get("name", "")
+        dept  = emp.get("dept", "")
+        lines.append("❌ <b>{name}</b> ({badge}) — {dept}\n   Not punched today\n".format(
+            name=name, badge=badge, dept=dept))
+
+    return "\n".join(lines).rstrip()
 
 
 def _bot_get_db_stats() -> dict:

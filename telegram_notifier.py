@@ -307,7 +307,8 @@ class TelegramBotHandler:
       device status   — show all device online/offline, punches today, user count
       device sync     — sync time & users across all devices
       device reboot   — present inline keyboard to pick a device (or all)
-      user search     — prompt for employee name/badge and report punch status today
+      user search     — prompt for employee name/badge and show punch timings today
+      user <name/id>  — directly look up employee by name or badge (e.g. "user 1024", "user john")
       today summary   — present/absent/total counts and cache age
       today absent    — full absent list grouped by department
       dept summary    — per-department present vs absent breakdown
@@ -489,6 +490,11 @@ class TelegramBotHandler:
             self._cmd_device_reboot_ask(chat_id)
         elif text_lower in ("user search", "/user_search"):
             self._cmd_device_search_ask(chat_id)
+        elif text_lower in ("user report", "/user_report"):
+            self._cmd_user_report_ask(chat_id)
+        elif text_lower.startswith("user ") and len(text_lower) > 5:
+            # Direct lookup: "user 1024" or "user showkath"
+            self._cmd_user_direct(chat_id, raw_text[5:].strip())
         elif text_lower in ("today summary", "/today_summary"):
             self._cmd_today_summary(chat_id)
         elif text_lower in ("today absent", "/today_absent"):
@@ -497,8 +503,6 @@ class TelegramBotHandler:
             self._cmd_dept_summary(chat_id)
         elif text_lower in ("cache refresh", "/cache_refresh"):
             self._cmd_cache_refresh(chat_id)
-        elif text_lower in ("user report", "/user_report"):
-            self._cmd_user_report_ask(chat_id)
         elif text_lower in ("unknown users", "/unknown_users"):
             self._cmd_unknown_users(chat_id)
         elif text_lower in ("pending punches", "/pending_punches"):
@@ -729,6 +733,20 @@ class TelegramBotHandler:
         else:
             self._send(chat_id, "⚠️ Search is not available right now.")
 
+    def _cmd_user_direct(self, chat_id: str, query: str):
+        """Handle direct 'user <name_or_badge>' lookups, e.g. 'user 1024' or 'user showkath'."""
+        if not query:
+            self._send(chat_id, "⚠️ Please provide a name or badge number, e.g. <code>user 1024</code>.")
+            return
+        if self.get_employee_punches_fn:
+            try:
+                result = self.get_employee_punches_fn(query)
+                self._send(chat_id, result)
+            except Exception as exc:
+                self._send(chat_id, "❌ Lookup error: {0}".format(str(exc)[:100]))
+        else:
+            self._send(chat_id, "⚠️ Employee lookup is not available right now.")
+
     def _cmd_help(self, chat_id: str):
         text = (
             "📋 <b>Available Commands</b>\n\n"
@@ -738,7 +756,8 @@ class TelegramBotHandler:
             "• <code>dept summary</code> — Per-department breakdown\n"
             "• <code>cache refresh</code> — Trigger an immediate data refresh\n\n"
             "<b>👤 Employees</b>\n"
-            "• <code>user search</code> — Check if an employee punched today\n"
+            "• <code>user search</code> — Search by name/badge with punch timings today\n"
+            "• <code>user &lt;name/badge&gt;</code> — Direct lookup, e.g. <code>user 1024</code> or <code>user john</code>\n"
             "• <code>user report</code> — Punch times for an employee today\n\n"
             "<b>📡 Devices</b>\n"
             "• <code>device status</code> — Show all device statuses\n"
