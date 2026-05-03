@@ -790,14 +790,48 @@ select.form-control option{background:var(--card)}
 .dp-btn.danger{color:var(--red)}
 .dp-btn.danger:hover{border-color:var(--red);background:var(--red-dim)}
 
-/* ── RESPONSIVE ── */
+/* ── HAMBURGER (hidden on desktop) ── */
+.hamburger{
+  display:none;background:none;border:none;color:var(--text2);
+  font-size:20px;cursor:pointer;padding:4px 8px;flex-shrink:0;
+  line-height:1;border-radius:var(--radius-sm);transition:color .15s;
+}
+.hamburger:hover{color:var(--accent)}
+
+/* ── MOBILE SIDEBAR OVERLAY ── */
+.mob-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:299}
+.mob-overlay.show{display:block}
+
+/* ── RESPONSIVE: tablet / large phone (≤ 768px) ── */
 @media(max-width:768px){
   :root{--sidebar-w:0px}
+  .hamburger{display:flex;align-items:center;justify-content:center}
   .sidebar{position:fixed;left:-220px;width:220px;top:var(--header-h);bottom:0;z-index:300;transition:left .25s}
   .sidebar.open{left:0}
-  .header-logo{width:auto;border:none}
+  .header-logo{width:auto;border:none;padding-right:0}
   .detail-pane{display:none}
   .stat-grid{grid-template-columns:1fr 1fr}
+  .page{padding:14px 16px}
+  .form-row,.form-row.col3{grid-template-columns:1fr}
+  .perm-grid{grid-template-columns:1fr}
+  #weatherWidget{display:none!important}
+  #cacheTime{display:none}
+  .status-bar{overflow-x:auto;gap:10px;flex-wrap:nowrap}
+}
+
+/* ── RESPONSIVE: small phone (≤ 480px) ── */
+@media(max-width:480px){
+  .stat-grid{grid-template-columns:1fr}
+  .sc-value{font-size:24px}
+  .punch-time-big{font-size:30px}
+  .page{padding:10px 12px}
+  .page-hdr{flex-direction:column;align-items:flex-start}
+  .page-hdr-left h2{font-size:16px}
+  .modal{border-radius:8px}
+  .header{padding:0 10px;gap:8px}
+  .hbtn:not(#themeBtn){display:none}
+  .header-center{display:none}
+  .status-bar{display:none}
 }
 
 /* ── MISC ── */
@@ -985,6 +1019,7 @@ input:checked+.slider:before{transform:translateX(16px);background:#000}
 
   <!-- HEADER -->
   <div class="header">
+    <button class="hamburger" id="hamburgerBtn" onclick="toggleSidebar()" title="Menu">☰</button>
     <div class="header-logo">
       <div class="hlogo-icon" id="hLogoIcon">🏢</div>
       <div class="hlogo-text">
@@ -1030,6 +1065,9 @@ input:checked+.slider:before{transform:translateX(16px);background:#000}
       <span id="ssePct">0%</span>
     </div>
   </div>
+
+  <!-- MOBILE SIDEBAR OVERLAY -->
+  <div class="mob-overlay" id="mobOverlay" onclick="closeSidebar()"></div>
 
   <!-- APP BODY -->
   <div class="app-body">
@@ -2471,6 +2509,29 @@ function showZkSection(section) {
   // Tell the iframe to show the right section
   window._doSendZkSection(section);
 }
+
+/* ── MOBILE SIDEBAR TOGGLE ── */
+function toggleSidebar(){
+  var s=document.getElementById('sidebar');
+  var o=document.getElementById('mobOverlay');
+  s.classList.toggle('open');
+  if(o) o.classList.toggle('show');
+}
+function closeSidebar(){
+  var s=document.getElementById('sidebar');
+  var o=document.getElementById('mobOverlay');
+  if(s) s.classList.remove('open');
+  if(o) o.classList.remove('show');
+}
+// Close sidebar on mobile when a nav item is clicked
+document.addEventListener('DOMContentLoaded',function(){
+  var sidebar=document.getElementById('sidebar');
+  if(sidebar){
+    sidebar.addEventListener('click',function(e){
+      if(window.innerWidth<=768) closeSidebar();
+    });
+  }
+});
 </script>
 
 <button id="scroll-top-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="Back to top">↑</button>

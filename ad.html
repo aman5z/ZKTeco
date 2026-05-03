@@ -296,8 +296,18 @@ td{padding:4px 10px;font-size:11px;border-right:1px solid var(--bdr);color:var(-
   .sidebar.open{transform:translateX(0)}.hamburger{display:flex}
   .toolbar{display:none}.dash-grid{grid-template-columns:repeat(2,1fr)}
   .r2,.r3{grid-template-columns:1fr}.mw.wide{width:100%}.perm-grid{grid-template-columns:1fr}
+  .ch h2{font-size:12px}.tl-title{font-size:10px}
+  .sbar{flex-wrap:wrap}.sbar input{min-width:0;flex:1}
+  table{font-size:10px}thead th,td{padding:3px 7px}
 }
-@media(max-width:480px){.mtab{font-size:10px;padding:4px 7px}.statusbar{gap:8px;font-size:9px}}
+@media(max-width:480px){
+  .mtab{font-size:10px;padding:4px 7px}.statusbar{gap:8px;font-size:9px}
+  .dash-grid{grid-template-columns:1fr}
+  .mw{width:100%!important;max-width:100%!important;border-radius:0}
+  .mbar-btn{padding:4px 7px;font-size:11px}
+  .tl-title{display:none}
+  thead th:nth-child(n+5),td:nth-child(n+5){display:none}
+}
 /* ── IT TOOLS ── */
 .tools-wrap{padding:10px;overflow-y:auto;flex:1}
 .tool-box{background:var(--card);border:1px solid var(--bdr);border-left:3px solid var(--sel);border-radius:2px;padding:14px;margin-bottom:10px}
