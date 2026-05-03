@@ -1456,13 +1456,15 @@ def set_device_names():
 def get_system_settings():
     try:
         g = db_manager.get_setting
+        users = _get_users()
+        is_admin = users.get(session.get("username", ""), {}).get("role") == "admin"
         return jsonify({
             "company_name": g("company_name", "GAES"),
             "email_domain":  g("email_domain",  "aman5z.in"),
             "company_logo":  g("company_logo",  ""),
             "gas_url":        g("gas_url",   ""),
-            "gas_email":      g("gas_email",  ""),
-            "gas_pass":       g("gas_pass",   ""),
+            "gas_email":      g("gas_email",  "") if is_admin else "",
+            "gas_pass":       g("gas_pass",   "") if is_admin else "",
             "zk_url":         g("zk_url",    ""),
             "term_ws_url":    g("term_ws_url", ""),
         })
