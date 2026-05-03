@@ -1,6 +1,6 @@
 # ZKTeco Attendance System
 
-A full attendance management solution for ZKTeco biometric devices. It includes a real-time logger that streams punch events to an API, a web dashboard for viewing attendance and reports, bulk sync utilities, and Telegram notifications.
+A full attendance management solution for ZKTeco biometric devices. It includes a real-time logger that streams punch events to a local SQLite database, a feature-rich web dashboard (ERP Console) for attendance management and IT operations, bulk sync utilities, and multi-channel notifications.
 
 ---
 
@@ -8,26 +8,100 @@ A full attendance management solution for ZKTeco biometric devices. It includes 
 
 | File | Purpose |
 |------|---------|
-| `main.py` | Real-time attendance logger — streams live punch events from all devices to the API endpoint |
-| `server.py` | Flask web dashboard — view today's/historical attendance, employee list, reports, device management |
-| `sync_all.py` | Bulk sync CLI — pull all logs from devices and push to API (supports date range filtering) |
-| `sync_db.py` | Database sync CLI — imports employees from MDB, pulls device logs into local SQLite |
-| `boot_sync_60d.py` | Startup sync — syncs the last 60 days of logs on system boot via `sync_all.py` |
+| `main.py` | Real-time attendance logger — streams live punch events from all devices to the local database and external API |
+| `server.py` | Flask web dashboard (v2.2) — full ERP Console backend with attendance, device management, ticketing, messaging, and admin APIs |
+| `sync_all.py` | Bulk sync CLI — pull all logs from devices and push to API (supports date range and per-device filtering) |
+| `sync_db.py` | Database sync CLI — imports employees from MDB/CSV, pulls device logs into local SQLite |
+| `boot_sync_60d.py` | Startup sync — syncs the last 60 days of logs on system boot |
+| `gaes-py-zk/boot_sync_30d.py` | GAS-edition startup sync — syncs the last 30 days on boot |
 | `mdb_tools.py` | MDB/Access tools — export employees, generate absent reports from MDB backup |
-| `telegram_notifier.py` | Telegram bot helper — sends system status notifications |
+| `telegram_notifier.py` | Telegram bot helper — sends device status, punch, and daily report notifications |
+| `code.gs` | Google Apps Script backend — IT Helpdesk, token queues, Drive storage, and GAS-side authentication |
 
 ---
 
 ## Features
 
-- Live real-time capture from multiple ZKTeco devices (self-healing reconnect)
-- Buffered push to API endpoint with configurable batch size
-- Web dashboard with login, role-based access, department view, calendar, reports
-- Export absent reports to Excel/PDF
-- Telegram notifications for startup, data push, errors
-- Windows (`.bat`) and Linux (`.sh`) launchers with interactive menu
-- Systemd service installer for auto-start on boot (Linux)
-- Docker support
+### Core Attendance
+- Live real-time capture from multiple ZKTeco devices (self-healing reconnect, per-device threads)
+- Buffered push to external API endpoint with configurable batch size
+- Local SQLite storage (WAL mode) for all punches and employees
+- Date-range bulk sync with `--from` / `--to` flags and `--device-id` filtering
+- Import employees from MDB (Access), CSV, or XLSX files
+- Startup auto-sync scripts (last 30 or 60 days)
+
+### Web Dashboard
+- Secure login with admin and employee roles
+- Role-Based Access Control (RBAC) — configurable per-user permissions
+- Light / Dark / Dracula / Nord UI themes (stored server-side per user)
+- User avatar upload and password self-service change
+- Server-Sent Events (SSE) for live page refresh without polling
+- Session management — list, revoke individual or all sessions for a user
+- Configurable inactivity auto-logout (per role)
+- Audit log — every sensitive action is recorded with timestamp, IP, and user agent
+
+### Human Resources & Attendance
+- **Today's dashboard:** real-time present/absent counts and per-department percentages
+- **Historical reports:** date-range attendance with late/early-leave detection
+- **Employee calendar:** monthly punch timeline with shift and grace-period annotations
+- **Monthly summary:** per-employee worked-days, late days, and early-leave summary
+- **Raw attlogs view:** filterable badge/date punch records
+- **Remote punch:** employees can punch in/out from the browser (offline-capable via IndexedDB)
+- **Shift configuration:** department-specific start time, end time, and grace period
+- **Workday configuration:** per-department and per-employee working-day overrides
+- **Holiday management:** add/delete holidays with global, department, or individual scope
+- **Employee activation/deactivation and deletion**
+- **Unknown user resolution:** auto-map or manually map device UIDs to employee badges
+
+### Reporting & Exports
+- Export today's attendance to **Excel (XLSX)** and **PDF**
+- Export date-range history to **Excel** and **PDF**
+- Export individual employee reports to **Excel** and **PDF**
+- **WhatsApp/plain-text absent export** — formatted message grouped by department
+- **Scheduled email report** — HTML + plain-text daily absent report via Gmail SMTP at a configured time
+- **Scheduled Telegram daily report** — absent summary sent to a Telegram chat at a configured time
+
+### Hardware Management (ZKTeco Devices)
+- Monitor online/offline status for all configured devices
+- View device serial number, platform, and enrolled user count
+- **Remote actions:** ping, sync clock, reboot
+- **Download enrolled users** from a device as JSON
+- **Download fingerprint templates** from a device as base64-encoded JSON
+- **Download raw attendance log** from a device as CSV
+
+### Notifications
+- **Telegram:** device online/offline alerts, per-punch notifications, scheduled daily absent report
+- **Email (Gmail SMTP):** scheduled daily absent report with HTML and plain-text body
+- All notification settings configurable from the Admin UI without restarting
+
+### IT Services & Collaboration
+- **Helpdesk Ticketing:** create, assign, and track IT support tickets with priority levels and due dates
+- **Token Queue / Counters:** digital service counters (HR, Finance, Medical, etc.) with visual queue
+- **Notice Board:** post and manage announcements visible to all users
+- **Internal Messaging:** peer-to-peer chat between dashboard users with read receipts
+- **Sticky Notes:** private, per-user color-coded notes stored in the database
+- **Google Drive Integration:** browse and upload files to a designated Drive folder (via GAS)
+- **Linode / Cloud Terminal:** integrated web shell via `ttyd` and an nginx proxy
+
+### Database & Admin Tools
+- **SQL Console:** run raw SQLite queries directly from the UI (admin only)
+- **DB Backup:** download the full SQLite database as a file
+- **DB Local Backup:** write a timestamped backup to the server's local filesystem
+- **CSV Import:** bulk-import punches from a CSV file
+- **MDB Import:** pull punches from an Access MDB backup into the local database
+- Auto-sync scheduler configurable from the Admin UI
+
+### Built-in IT Toolkit (client-side, no server needed)
+- **Email Batch Manager:** parse `.xlsx` files, extract, deduplicate, and batch emails
+- **Generators:** QR codes, Code128 barcodes, and secure passwords
+- **PDF Tools:** merge, split, compress, and watermark PDFs in-browser using `pdf-lib`
+- **Networking:** IP/DNS lookup, Subnet Calculator, MAC Vendor lookup, live Ping Monitor charts
+- **Data Formatting:** Base64 encode/decode, Hex/Dec/Bin converters, Text Diff checker
+
+### Progressive Web App (PWA)
+- Service Worker with offline caching
+- Offline punch queue stored in IndexedDB — syncs automatically when back online
+- Installable on Android, iOS, and desktop
 
 ---
 
@@ -35,7 +109,8 @@ A full attendance management solution for ZKTeco biometric devices. It includes 
 
 - **Python** 3.8 or later
 - Dependencies listed in `requirements.txt`
-- Linux dashboard: `mdbtools` system package (for MDB file reading)
+- Linux/macOS/Termux: `mdbtools` system package (for MDB file reading)
+- Windows: Microsoft Access Database Engine (pyodbc) for MDB features
 
 ---
 
@@ -92,7 +167,7 @@ source venv/bin/activate        # Linux/macOS/Termux
 
 pip install -r requirements.txt
 
-# Real-time logger (pushes live events to API)
+# Real-time logger (pushes live events to API + local DB)
 python main.py
 
 # Web dashboard
@@ -111,9 +186,7 @@ python server.py      # open http://localhost:5000
 | Real-time logger (`main.py`) | ✅ | ✅ | ✅ | ✅ |
 | Auto-start | Task Scheduler / bat | systemd | launchd | Termux:Boot |
 
-MDB features (employee export, absent reports from Access backup) require:
-- **Windows**: Microsoft Access Database Engine (pyodbc)
-- **Linux/macOS/Termux**: `mdbtools` (`sudo apt install mdbtools` / `brew install mdbtools` / `pkg install mdbtools`)
+---
 
 ## Configuration
 
@@ -146,7 +219,17 @@ MDB features (employee export, absent reports from Access backup) require:
 
 ### `settings.ini` — Web dashboard
 
-Edit `settings.ini` to configure device IPs, departments, session timeouts, and the dashboard port.
+Edit `settings.ini` to configure device IPs, departments, session timeouts, Telegram settings, and the dashboard port. Key sections:
+
+| Section | Key settings |
+|---------|-------------|
+| `[devices]` | IP list, port, connection timeout, pull timeout |
+| `[server]` | Dashboard port, cache refresh interval |
+| `[database]` | Optional path to MDB backup file |
+| `[departments]` | Excluded depts, collapsed depts, display order |
+| `[sessions]` | Session lifetime, admin/employee inactivity timeout |
+| `[app]` | Version string, default admin password |
+| `[telegram]` | Bot token, chat ID, per-notification toggles, daily report time |
 
 ---
 
@@ -195,19 +278,25 @@ A unified, high-performance web dashboard merging the ZKTeco Biometric Attendanc
 ### Overview
 
 The ERP Console connects to two primary backends:
-1. **ZKTeco Local Server** — Python/Flask API handling local biometric hardware, employee databases, and attendance logs.
-2. **Google Apps Script (GAS)** — Cloud backend managing IT Helpdesk tickets, token queues, Drive storage, and admin authentication.
+1. **ZKTeco Local Server** — Python/Flask API (v2.2) handling local biometric hardware, SQLite employee databases, attendance logs, messaging, ticketing, and all admin functions.
+2. **Google Apps Script (GAS)** — Cloud backend managing IT Helpdesk tickets, token queues, Drive storage, and GAS-side authentication.
 
-It features full PWA (Progressive Web App) support, offline capabilities using IndexedDB, and a built-in suite of IT networking and utility tools.
+It features full PWA support, offline punch caching via IndexedDB, four UI themes, and a built-in suite of IT networking and utility tools.
 
 ---
 
 ### 👥 Human Resources & Attendance
 
-- **Live Dashboard:** Real-time stats for present/absent employees, offline tracking, and department attendance percentages.
-- **Attendance Management:** View today's attendance, historical date-range reports, and individual employee calendars with shift and grace-period logic.
-- **Remote Punching:** Allow employees to punch in/out from their devices. Includes offline support (saves to IndexedDB and syncs when back online).
-- **Leave & Shift Admin:** Configure department-specific shifts, workdays, and system-wide holidays.
+- **Live Dashboard:** Real-time present/absent employee counts with per-department attendance percentages and offline device tracking.
+- **Today's Attendance:** Full present/absent list with late/early-leave indicators.
+- **Historical Reports:** Date-range attendance reports with late and early-leave detection, exportable to Excel and PDF.
+- **Employee Calendar:** Monthly punch timeline per employee, with shift and grace-period annotations.
+- **Monthly Summary:** Per-employee summary of worked days, late days, and early-leave occurrences.
+- **Raw Attlogs:** Filterable raw punch records (badge, date range) with CSV-level detail.
+- **Remote Punching:** Employees can punch in/out from any browser. Offline support saves punches to IndexedDB and syncs when back online.
+- **Shift Admin:** Configure department-specific shift start/end times and grace periods.
+- **Workday Admin:** Set working days per department or override per individual employee.
+- **Holiday Management:** Add/delete holidays scoped to all employees, a specific department, or individual employees.
 
 <img src="https://github.com/user-attachments/assets/a3e2ae7e-5724-43a8-b68b-9e6c7fc3c6b5">
 
@@ -215,32 +304,60 @@ It features full PWA (Progressive Web App) support, offline capabilities using I
 
 ### 📡 Hardware Management (ZKTeco)
 
-- **Device Fleet Control:** Monitor online/offline status for all connected ZKTeco terminals.
-- **Remote Actions:** Ping devices, sync clocks, reboot, and view or download enrolled users and raw attendance logs directly from the dashboard.
+- **Device Fleet Control:** Monitor online/offline status, serial number, platform, and enrolled user count for all connected ZKTeco terminals.
+- **Remote Actions:** Ping devices, sync clocks, reboot terminals directly from the dashboard.
+- **Data Downloads:** Download enrolled users (JSON), fingerprint templates (base64 JSON), and raw attendance logs (CSV) from any device with a single click.
+- **Unknown User Resolution:** Automatically or manually map device UIDs that don't match any employee badge.
 
 <img src="https://github.com/user-attachments/assets/f0d928be-4d1b-4734-8e00-04b0df7f1097">
+
+---
+
+### 📊 Reporting & Notifications
+
+- **Export Reports:** Export today's attendance, date-range history, or individual employee reports to **Excel (XLSX)** or **PDF**.
+- **WhatsApp/Plain-Text Export:** One-click absent list formatted for WhatsApp, grouped by department.
+- **Scheduled Email Report:** Daily absent report (HTML + plain-text) delivered via Gmail SMTP at a configured time.
+- **Scheduled Telegram Report:** Daily absent summary sent to a Telegram group or channel at a configured time.
+- **Per-Punch Telegram Alerts:** Instant notification for every punch event (togglable).
+- **Device Status Alerts:** Telegram notification when any device goes online or offline.
 
 ---
 
 ### 🎫 IT Services & Collaboration
 
 - **Helpdesk Ticketing:** Create, assign, and track IT support tickets with priority levels and due dates.
-- **Token Queue:** Manage digital service counters (e.g., HR, Finance, Medical) with visual queue tracking.
-- **Internal Chat & Notes:** Peer-to-peer messaging system and private, color-coded sticky notes.
-- **Google Drive Integration:** Browse and upload files directly to a designated Google Drive folder.
-- **Linode Terminal:** Integrated web shell connecting to your server via `ttyd` and an nginx proxy.
+- **Token Queue / Counters:** Digital service counters (HR, Finance, Medical, etc.) with live visual queue display.
+- **Notice Board:** Post and manage announcements visible to all logged-in users.
+- **Internal Messaging:** Peer-to-peer chat between dashboard users with read receipts and online presence indicators.
+- **Sticky Notes:** Private, per-user color-coded notes persisted in the database.
+- **Google Drive Integration:** Browse and upload files directly to a designated Google Drive folder (via GAS backend).
+- **Cloud Terminal:** Integrated web shell connecting to your server via `ttyd` and an nginx proxy.
 
 <img src="https://github.com/user-attachments/assets/33247b6e-dec4-4f83-9b63-8d9d577368ae">
 <img src="https://github.com/user-attachments/assets/5ee74551-b9e5-44d4-906d-88317393e6c4">
 
 ---
 
+### 🔧 Admin & Database Tools
+
+- **SQL Console:** Execute raw SQLite queries directly from the Admin panel.
+- **DB Backup:** Download the full SQLite database file, or write a timestamped local backup.
+- **CSV/MDB Import:** Bulk-import punch records from CSV files or an Access MDB backup.
+- **Audit Log:** Full history of every sensitive action (login, export, device command, etc.) with timestamp, IP address, and user agent.
+- **Session Manager:** View all active sessions, revoke individual sessions, or force-logout all sessions for a specific user.
+- **User Management:** Create, edit, and delete dashboard users with fine-grained permission assignment.
+- **Email & Telegram Settings:** Configure notification credentials and schedules from the UI without editing config files.
+- **Auto-Sync Scheduler:** Configure automatic database synchronisation intervals from the Admin panel.
+
+---
+
 ### 🧰 Built-in IT Toolkit
 
-A comprehensive suite of client-side utilities built right into the app:
+A comprehensive suite of client-side utilities built into the app — no server calls required:
 
 - **Email Batch Manager:** Parse `.xlsx` files, extract, deduplicate, and batch emails for mass communication.
-- **Generators:** QR codes, Code128 Barcodes, and secure Passwords.
+- **Generators:** QR codes, Code128 barcodes, and secure passwords.
 - **PDF Tools:** Merge, split, compress, and watermark PDFs entirely in the browser using `pdf-lib`.
 - **Networking:** IP/DNS Lookup, Subnet Calculator, MAC Vendor lookup, and live Ping Monitor charts.
 - **Data Formatting:** Base64 encoding/decoding, Hex/Dec/Bin converters, and a Text Diff checker.
@@ -255,9 +372,12 @@ A comprehensive suite of client-side utilities built right into the app:
 
 | Layer | Details |
 |-------|---------|
-| **Frontend** | HTML5, CSS3 (Native CSS Variables), Vanilla JavaScript (ES6+) |
-| **Offline Storage** | `localStorage` for settings; `IndexedDB` & Service Workers for offline punch caching |
-| **External Libraries (CDN)** | `JsBarcode`, `qrcode.js`, `pdf-lib`, `SheetJS / xlsx`, `Chart.js` (custom Canvas charting) |
+| **Backend** | Python 3.8+, Flask, SQLite (WAL mode), `pyzk` for device communication |
+| **Frontend** | HTML5, CSS3 (Native CSS Variables + 4 built-in themes), Vanilla JavaScript (ES6+), 21 modular JS files |
+| **Offline Storage** | `localStorage` for settings; `IndexedDB` + Service Workers for offline punch caching |
+| **External Libraries (CDN)** | `JsBarcode`, `qrcode.js`, `pdf-lib`, `SheetJS / xlsx`, `Chart.js` |
+| **Notifications** | Telegram Bot API, Gmail SMTP (SSL) |
+| **Cloud Backend** | Google Apps Script (GAS) for ticketing, Drive, and token queues |
 
 <img src="https://github.com/user-attachments/assets/2e95a033-1456-4a70-ba1b-cba16c7ebd58">
 
@@ -265,13 +385,16 @@ A comprehensive suite of client-side utilities built right into the app:
 
 ### 🎮 Demo Mode
 
-Don't have the backends set up yet? Click **"🎮 Enter Demo Mode"** on the login screen to explore the UI with mock employees, tickets, devices, and attendance data.
+Don't have the backends set up yet? Click **"🎮 Enter Demo Mode"** on the login screen to explore the full UI with mock employees, tickets, devices, and attendance data — no server required.
 
 ---
 
-### 🔒 Security Note
+### 🔒 Security Notes
 
-The ERP Console relies on its connected backend services for true authorization. The built-in Role-Based Access Control (RBAC) hides UI elements based on the user's role, but backend APIs (Flask/GAS) must independently validate session tokens for all sensitive read/write operations.
+- All API routes are protected by `@login_required` or `@admin_required` decorators; the frontend RBAC only controls UI visibility.
+- Passwords are stored as salted PBKDF2-HMAC-SHA256 hashes — never in plain text.
+- Sessions are tracked server-side and can be revoked instantly by an admin.
+- The audit log records every sensitive action for accountability.
 
 ---
 
