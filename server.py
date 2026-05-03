@@ -793,6 +793,10 @@ def _before_req():
                     }
         _touch_session()
 
+@app.errorhandler(400)
+def bad_request(e):
+    return jsonify({"error": str(e) or "Bad request"}), 400
+
 @app.errorhandler(401)
 def unauthorized(e):
     return jsonify({"error": "Not authenticated", "auth_required": True}), 401

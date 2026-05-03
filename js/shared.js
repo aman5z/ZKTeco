@@ -366,7 +366,8 @@ async function zkAPI(path,opts={}){
   const url=CFG.zkUrl+path;
   const method=(opts.method||'GET').toUpperCase();
   const isWrite=['POST','PUT','PATCH','DELETE'].includes(method);
-  const hdrs=isWrite?{'Content-Type':'application/json',...(opts.headers||{})}:(opts.headers||{});
+  const hasBody='body' in opts && opts.body!=null;
+  const hdrs=(isWrite&&hasBody)?{'Content-Type':'application/json',...(opts.headers||{})}:(opts.headers||{});
   const r=await fetch(url,{credentials:'include',...opts,headers:hdrs});
   if(!r.ok){
     let msg='ZK API '+r.status+' on '+path;
