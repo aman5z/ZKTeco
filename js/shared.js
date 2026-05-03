@@ -766,6 +766,8 @@ function doLogout(){
   clearInterval(STATE._clockTimer);
   clearInterval(STATE._pollTimer);
   clearInterval(STATE._msgPollTimer);
+  clearInterval(_msgPollTimer);
+  _msgPollTimer = null;
 }
 
 // ===========================================================================

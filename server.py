@@ -731,7 +731,8 @@ def _init_telegram():
         # Classify error for a safe, user-friendly summary (no raw stack trace in responses).
         exc_type = type(exc).__name__
         if "ImportError" in exc_type or "ModuleNotFoundError" in exc_type:
-            _tg_init_error = "Required package missing (httpx). Run: pip install httpx"
+            pkg = str(exc).replace("No module named ", "").strip("'\" ")
+            _tg_init_error = "Required package missing: {0}. Run: pip install {0}".format(pkg)
         elif "ConnectionError" in exc_type or "Timeout" in exc_type:
             _tg_init_error = "Network error connecting to Telegram API"
         else:
@@ -3448,6 +3449,29 @@ def toggle_employee_active(badge):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
+@app.route("/api/employee/<badge>", methods=["DELETE"])
+@admin_required
+def delete_employee(badge):
+    """Permanently remove an employee record (punch history is retained)."""
+    try:
+        conn = get_db()
+        row  = conn.execute("SELECT name FROM employees WHERE badge=?", (badge,)).fetchone()
+        if not row:
+            conn.close()
+            return jsonify({"error": "Employee not found"}), 404
+        emp_name = row["name"]
+        conn.execute("DELETE FROM employees WHERE badge=?", (badge,))
+        conn.commit()
+        conn.close()
+        db_manager.write_audit(session.get("username","?"), "DELETE_EMPLOYEE",
+                               "badge={0} name={1}".format(badge, emp_name),
+                               request.remote_addr)
+        return jsonify({"ok": True, "message": "{0} removed from employee list.".format(emp_name)})
+    except Exception as e:
+        print("[DeleteEmployee] Error: {0}".format(e))
+        return jsonify({"error": "Failed to delete employee. Please try again."}), 500
+
 # ==============================================================================
 #  AUTO-SYNC SCHEDULE
 # ==============================================================================
@@ -5173,7 +5197,7 @@ rp = _RPShim()
 
 def _punch_device_cfg():
     """Remote punches write to all configured biometric devices."""
-    return list(get_device_ips()), int(DEVICE_PORT)
+    return _load_device_ips(), int(DEVICE_PORT)
 
 def _punch_badge_for_session():
     users = _get_users()

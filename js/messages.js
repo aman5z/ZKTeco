@@ -4,7 +4,6 @@
 let ALL_MESSAGES = [];
 let ACTIVE_CHAT_PEER = null;
 let ONLINE_USERS = [];
-let _msgPollTimer = null;
 
 // Start polling when entering messages page, stop when leaving
 

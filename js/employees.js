@@ -62,6 +62,7 @@ function selectEmployee(code){
       <button class="dp-btn" onclick="viewEmpCalendar('${esc(emp.code||emp.badge)}')">🗓 View Calendar</button>
       <button class="dp-btn" onclick="openAddEmpUserFor('${esc(emp.code||emp.badge)}','${esc(emp.name)}','${esc(emp.dept)}')" data-admin>🔐 Create Login</button>
       ${STATE.isAdmin?`<button class="dp-btn danger" onclick="toggleEmpActive('${esc(emp.code||emp.badge)}',${emp.active?0:1})">⊘ ${emp.active?'Deactivate':'Activate'}</button>`:''}
+      ${STATE.isAdmin?`<button class="dp-btn danger" onclick="deleteEmployee('${esc(emp.code||emp.badge)}','${esc(emp.name)}')" title="Permanently remove this employee">🗑 Delete</button>`:''}
     </div>
   `;
 }
@@ -76,6 +77,18 @@ async function toggleEmpActive(badge,active){
   try{
     await zkAPI('/api/employee/'+badge+'/active',{method:'POST'});
     toast('✅ Employee status updated');loadEmployees();
+  }catch(e){toast('❌ '+e.message)}
+}
+async function deleteEmployee(badge,name){
+  if(STATE.isDemo){toast('🎮 Demo');return}
+  if(!confirm('Permanently delete '+name+' ('+badge+') from the employee list?\n\nPunch history will be retained, but the employee will no longer appear in reports or the dashboard.'))return;
+  try{
+    const d=await zkAPI('/api/employee/'+badge,{method:'DELETE'});
+    if(d.error)throw new Error(d.error);
+    toast('🗑 '+(d.message||'Employee deleted'));
+    STATE.selectedEmp=null;
+    el('empDetailPane').innerHTML='';
+    loadEmployees();
   }catch(e){toast('❌ '+e.message)}
 }
 function openAddEmpUser(){openAddEmpUserFor('','','');}
