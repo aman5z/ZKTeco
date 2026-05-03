@@ -12,17 +12,8 @@
   el('histFrom').value=wk.getFullYear()+'-'+String(wk.getMonth()+1).padStart(2,'0')+'-'+String(wk.getDate()).padStart(2,'0');
   el('calMonth').value=yr+'-'+mn;
   el('adminPunchTime').value=yr+'-'+mn+'-'+dy+'T07:30';
-  // Status bar clock (pre-login)
+  // Status bar clock
   setInterval(()=>{el('sbClock').textContent=new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'})},1000);
-  // Enter key on login
-  el('loginUser').addEventListener('keydown',e=>{if(e.key==='Tab'){e.preventDefault();el('loginPass').focus()}});
-  
-  // Remember Me init
-  const remUser = localStorage.getItem('rememberedUser');
-  if(remUser) {
-    el('loginUser').value = remUser;
-    if(el('rememberMe')) el('rememberMe').checked = true;
-  }
 
   // Server Ping
   setInterval(async () => {
@@ -95,7 +86,10 @@ window.addEventListener('DOMContentLoaded', async () => {
                     theme: d.theme || 'dark', source: 'zk'
                 });
                 tryGASLogin();
+                return;
             }
         }
     } catch(e) {}
+    // No active session — load the app shell directly without authentication
+    await onLoginSuccess({username:'guest',name:'Guest',role:'employee',badge:'',permissions:{},theme:ls('theme')||'dark',source:'zk'});
 });
