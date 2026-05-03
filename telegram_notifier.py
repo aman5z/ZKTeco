@@ -6,7 +6,11 @@ Features:
   1. Device online / offline alerts
   2. Per-punch notifications (IP, time, employee code)
   3. Daily 08:10 absent report (XLSX document, grouped by dept category)
-  4. Bot command handler: device status, sync, reboot, search
+  4. Bot command handler:
+       device status, device sync, device reboot, user search,
+       today summary, today absent, dept summary, cache refresh,
+       user report, unknown users, pending punches, holiday check,
+       db stats
 
 Configuration (settings.ini [telegram] section):
   bot_token   = <your bot token>
@@ -358,6 +362,9 @@ class TelegramBotHandler:
         self.get_pending_punches_fn = get_pending_punches_fn
         self.cache_refresh_fn = cache_refresh_fn
         self.get_employee_punches_fn = get_employee_punches_fn
+
+    # Max rows to include in list-type bot replies (to stay within Telegram's 4096-char limit)
+    _MAX_LIST_ITEMS = 30
 
     def start(self):
         if not self.bot_token or not self.chat_id:
@@ -906,7 +913,7 @@ class TelegramBotHandler:
             "⚠️ <b>Unknown Users</b>  ({0} unresolved)".format(len(users)),
             "",
         ]
-        for u in users[:30]:   # cap at 30 to stay within Telegram message limit
+        for u in users[:self._MAX_LIST_ITEMS]:   # cap to stay within Telegram message limit
             lines.append(
                 "• UID <code>{uid}</code> — <code>{ip}</code>  <i>{seen}</i>".format(
                     uid=u.get("uid", "?"),
@@ -914,8 +921,8 @@ class TelegramBotHandler:
                     seen=(u.get("seen_at", "") or "")[:16],
                 )
             )
-        if len(users) > 30:
-            lines.append("\n… and {0} more.".format(len(users) - 30))
+        if len(users) > self._MAX_LIST_ITEMS:
+            lines.append("\n… and {0} more.".format(len(users) - self._MAX_LIST_ITEMS))
         self._send(chat_id, "\n".join(lines))
 
     def _cmd_pending_punches(self, chat_id: str):
@@ -932,7 +939,7 @@ class TelegramBotHandler:
             "🎫 <b>Pending Punch Requests</b>  ({0})".format(len(pending)),
             "",
         ]
-        for req in pending[:20]:
+        for req in pending[:self._MAX_LIST_ITEMS]:
             badge = req.get("badge", "?")
             name  = req.get("employee_name") or req.get("name", "")
             ts    = (req.get("punch_time") or "")[:16]
@@ -940,8 +947,8 @@ class TelegramBotHandler:
                 "• <b>{name}</b> ({badge})  🕐 {ts}".format(
                     name=name or badge, badge=badge, ts=ts)
             )
-        if len(pending) > 20:
-            lines.append("\n… and {0} more.".format(len(pending) - 20))
+        if len(pending) > self._MAX_LIST_ITEMS:
+            lines.append("\n… and {0} more.".format(len(pending) - self._MAX_LIST_ITEMS))
         self._send(chat_id, "\n".join(lines))
 
     def _cmd_holiday_check(self, chat_id: str):
