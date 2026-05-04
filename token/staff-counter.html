@@ -316,11 +316,8 @@
     }
 
     try {
-      const res = await fetch(GAS_URL, {
-        method: 'POST',
-        headers: {'Content-Type':'application/x-www-form-urlencoded'},
-        body: new URLSearchParams({action:'login', email, password:pass})
-      });
+      const params = new URLSearchParams({action:'login', email, password:pass});
+      const res = await fetch(GAS_URL + '?' + params.toString());
       const data = await res.json();
       if (!data || !data.success) {
         showLoginErr(data && data.error ? data.error : 'Invalid credentials'); return;
@@ -443,11 +440,8 @@
 
   async function callNext() {
     try {
-      const res = await fetch(GAS_URL, {
-        method:'POST',
-        headers:{'Content-Type':'application/x-www-form-urlencoded'},
-        body: new URLSearchParams({action:'callNext', token, dept})
-      });
+      const params = new URLSearchParams({action:'callNext', token, dept});
+      const res = await fetch(GAS_URL + '?' + params.toString());
       const data = await res.json();
       if (data.error) { alert(data.error); return; }
       loadQueue();
@@ -464,11 +458,10 @@
 
   async function updateTokenStatus(tid, status) {
     try {
-      const res = await fetch(GAS_URL, {
-        method:'POST',
-        headers:{'Content-Type':'application/x-www-form-urlencoded'},
-        body: new URLSearchParams({action:'updateTokenStatus', token, tokenId: tid, status})
-      });
+      const params = new URLSearchParams({action:'updateTokenStatus', token, tokenId: tid, status});
+      const res = await fetch(GAS_URL + '?' + params.toString());
+      const data = await res.json();
+      if (data.error) { alert(data.error); return; }
       loadQueue();
     } catch(err) { alert('Error: ' + err.message); }
   }

@@ -52,7 +52,17 @@ function dispatch(e) {
 }
 
 function doPost(e) { return dispatch(e); }
-function doGet(e)  { return dispatch(e); }
+function doGet(e) {
+  const result = dispatch(e);
+  const cb = e.parameter.callback;
+  if (cb && /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(cb)) {
+    try {
+      return ContentService.createTextOutput(cb + "(" + result.getContent() + ")")
+        .setMimeType(ContentService.MimeType.JAVASCRIPT);
+    } catch(err) {}
+  }
+  return result;
+}
 
 /* ── LOGIN ──
    Users cols: 0=Email 1=Hash 2=Role 3=Phone 4=DisplayName 5=Dept 6=Enabled 7=Modified 8=LastLogon 9=Permissions
@@ -639,7 +649,7 @@ function auth(e,role){const s=CacheService.getScriptCache().get(e.parameter.toke
 function authAny(e){const s=CacheService.getScriptCache().get(e.parameter.token||"");if(!s)return null;const p=JSON.parse(s);if(new Date()>new Date(p.expiry))return null;return p;}
 
 /* ── getCountersPublic (original, for tokendisplay.html / TokenCtr.html) ──
-   Supports JSONP (with callback param) and plain JSON (without callback). */
+   JSONP wrapping is handled centrally by doGet. */
 function getCountersPublic(e) {
   ensureCountersSheet();
   const sheet = ss().getSheetByName("Counters");
@@ -651,13 +661,8 @@ function getCountersPublic(e) {
       data[i][4] = p;
     }
   }
-  const cb = e.parameter.callback;
-  if (!cb) {
-    return ContentService.createTextOutput(JSON.stringify(data))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-  return ContentService.createTextOutput(cb + "(" + JSON.stringify(data) + ")")
-    .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  return ContentService.createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
 /* ── ONE-TIME SETUP ── */

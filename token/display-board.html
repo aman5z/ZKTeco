@@ -444,12 +444,8 @@
     const allRows = [];
     await Promise.all(DEPTS.map(async d => {
       try {
-        const res = await fetch(GAS_URL, {
-          method: 'POST',
-          headers: {'Content-Type':'application/x-www-form-urlencoded'},
-          body: new URLSearchParams({action:'getQueue', dept: d.key}),
-          redirect: 'follow'
-        });
+        const params = new URLSearchParams({action:'getQueue', dept: d.key});
+        const res = await fetch(GAS_URL + '?' + params.toString());
         const data = await res.json();
         if (Array.isArray(data)) allRows.push(...data);
       } catch(err) {}

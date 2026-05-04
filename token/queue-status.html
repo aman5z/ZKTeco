@@ -343,11 +343,8 @@
     }
 
     try {
-      const res = await fetch(GAS_URL, {
-        method:'POST',
-        headers:{'Content-Type':'application/x-www-form-urlencoded'},
-        body: new URLSearchParams({action:'getQueue', dept: myDept})
-      });
+      const params = new URLSearchParams({action:'getQueue', dept: myDept});
+      const res = await fetch(GAS_URL + '?' + params.toString());
       const data = await res.json();
       if (Array.isArray(data)) renderStatus(data);
     } catch(err) {
