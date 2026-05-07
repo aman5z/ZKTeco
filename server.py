@@ -2889,11 +2889,12 @@ def dashboard_alias():
 
 @app.route("/zk")
 def zk_page():
-    return send_from_directory(SCRIPT_DIR, "zk.html")
+    # zk.html no longer exists as a separate file; serve the main dashboard
+    return send_from_directory(SCRIPT_DIR, "d.html")
 
 @app.route("/ad")
 def ad_page():
-    return send_from_directory(SCRIPT_DIR, "ad.html")
+    return send_from_directory(SCRIPT_DIR, "d.html")
 
 
 @app.route("/static/<path:filename>")
@@ -3882,6 +3883,13 @@ def set_auto_sync():
 # ==============================================================================
 _sse_clients = []
 _sse_lock    = threading.Lock()
+
+# ==============================================================================
+#  SOS / EMERGENCY ALERT STATE
+# ==============================================================================
+_sos_clients   = []          # SSE teacher connections
+_sos_lock      = threading.Lock()
+_sos_last_alert = None       # last alert dict, or None
 
 def _sse_push(data_dict):
     msg = "data: {0}\n\n".format(json.dumps(data_dict))
@@ -6058,6 +6066,100 @@ def voip_api_directory():
         return jsonify({"employees": records})
     except Exception as e:
         return jsonify({"employees": [], "error": "Failed to load directory"})
+
+
+# ==============================================================================
+#  SOS — EMERGENCY BROADCAST (merged from alert-server)
+# ==============================================================================
+
+@app.route("/sos")
+@app.route("/sos/teacher")
+def sos_teacher_page():
+    """Public teacher alert page — no login required."""
+    return send_from_directory(os.path.join(SCRIPT_DIR, "alert-server"), "teacher.html")
+
+
+@app.route("/sos/events")
+def sos_events():
+    """SSE endpoint — teachers subscribe here (public)."""
+    def generate():
+        q = queue.Queue(maxsize=50)
+        with _sos_lock:
+            _sos_clients.append(q)
+        try:
+            yield "data: {\"type\":\"connected\"}\n\n"
+            # Send last alert to late-joiners
+            with _sos_lock:
+                la = _sos_last_alert
+            if la:
+                yield "data: {0}\n\n".format(json.dumps(la))
+            while True:
+                try:
+                    msg = q.get(timeout=30)
+                    yield msg
+                except queue.Empty:
+                    yield "data: {}\n\n"  # keepalive
+        finally:
+            with _sos_lock:
+                if q in _sos_clients:
+                    _sos_clients.remove(q)
+    return Response(generate(), mimetype="text/event-stream",
+                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@app.route("/sos/send", methods=["POST"])
+@login_required
+def sos_send():
+    """Broadcast an emergency alert to all connected teachers."""
+    global _sos_last_alert
+    data = request.get_json() or {}
+    alert = {
+        "type":         "alert",
+        "level":        data.get("level", "high"),
+        "title":        data.get("title", "EMERGENCY ALERT"),
+        "message":      data.get("message", ""),
+        "instructions": data.get("instructions", ""),
+        "timestamp":    datetime.now().isoformat()
+    }
+    with _sos_lock:
+        _sos_last_alert = alert
+        msg = "data: {0}\n\n".format(json.dumps(alert))
+        dead = []
+        for q in _sos_clients:
+            try: q.put_nowait(msg)
+            except Exception: dead.append(q)
+        for q in dead: _sos_clients.remove(q)
+        reached = len(_sos_clients)
+    db_manager.write_audit(session.get("username", "?"), "SOS_ALERT",
+               "level={0} title={1}".format(alert["level"], alert["title"]))
+    return jsonify({"success": True, "reached": reached})
+
+
+@app.route("/sos/clear", methods=["POST"])
+@login_required
+def sos_clear():
+    """Send all-clear and reset the active alert."""
+    global _sos_last_alert
+    clear_msg = {"type": "clear", "timestamp": datetime.now().isoformat()}
+    with _sos_lock:
+        _sos_last_alert = None
+        msg = "data: {0}\n\n".format(json.dumps(clear_msg))
+        dead = []
+        for q in _sos_clients:
+            try: q.put_nowait(msg)
+            except Exception: dead.append(q)
+        for q in dead: _sos_clients.remove(q)
+    db_manager.write_audit(session.get("username", "?"), "SOS_CLEAR", "all-clear issued")
+    return jsonify({"success": True})
+
+
+@app.route("/sos/status")
+def sos_status():
+    """Public status endpoint for SOS."""
+    with _sos_lock:
+        connected = len(_sos_clients)
+        has_alert = _sos_last_alert is not None
+    return jsonify({"connected": connected, "hasAlert": has_alert})
 
 
 # ==============================================================================

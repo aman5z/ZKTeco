@@ -494,7 +494,7 @@
   let evtSource;
 
   function connect() {
-    evtSource = new EventSource('/events');
+    evtSource = new EventSource('/sos/events');
 
     evtSource.onopen = () => {
       document.getElementById('conn-badge').textContent = 'CONNECTED';
