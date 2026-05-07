@@ -3476,7 +3476,7 @@ input:checked+.slider:before{transform:translateX(16px);background:#000}
         <!-- Broadcast log -->
         <div class="card" style="padding:20px">
           <div style="font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--text2);margin-bottom:14px">Broadcast Log</div>
-          <div id="sos-history-list"><div style="color:var(--text2);font-size:13px">No alerts sent yet.</div></div>
+          <div id="sos-history-list"><div data-placeholder style="color:var(--text2);font-size:13px">No alerts sent yet.</div></div>
         </div>
       </div><!-- /page-sos -->
 
@@ -5314,15 +5314,26 @@ async function sosSendAllClear() {
 function sosAddHistory(title, level, reached) {
   var list = document.getElementById('sos-history-list');
   if (!list) return;
-  if (list.children[0] && list.children[0].style.color === '') list.innerHTML = '';
+  // Remove placeholder element (identified by data-placeholder attribute)
+  var placeholder = list.querySelector('[data-placeholder]');
+  if (placeholder) placeholder.remove();
   var time  = new Date().toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
   var colors = { critical:'#ff1a1a', high:'#ff8c00', info:'#4a9eff', clear:'#00cc66' };
   var c = colors[level] || '#888';
   var item = document.createElement('div');
   item.style.cssText = 'padding:10px 0;border-bottom:1px solid var(--border);font-size:13px;display:flex;gap:10px;align-items:flex-start';
-  item.innerHTML = '<span style="font-family:monospace;color:var(--text2);font-size:11px;flex-shrink:0;margin-top:2px">' + time + '</span>' +
-    '<span style="font-size:10px;padding:2px 8px;background:' + c + '22;color:' + c + ';font-family:monospace;flex-shrink:0">' + level.toUpperCase() + '</span>' +
-    '<span>' + (typeof esc === 'function' ? esc(title) : title) + ' <span style="color:var(--text2)">→ ' + reached + ' connected</span></span>';
+  // Build with DOM methods to avoid XSS
+  var timeSpan = document.createElement('span');
+  timeSpan.style.cssText = 'font-family:monospace;color:var(--text2);font-size:11px;flex-shrink:0;margin-top:2px';
+  timeSpan.textContent = time;
+  var badgeSpan = document.createElement('span');
+  badgeSpan.style.cssText = 'font-size:10px;padding:2px 8px;background:' + c + '22;color:' + c + ';font-family:monospace;flex-shrink:0';
+  badgeSpan.textContent = level.toUpperCase();
+  var msgSpan = document.createElement('span');
+  msgSpan.textContent = title + ' → ' + reached + ' connected';
+  item.appendChild(timeSpan);
+  item.appendChild(badgeSpan);
+  item.appendChild(msgSpan);
   list.prepend(item);
 }
 

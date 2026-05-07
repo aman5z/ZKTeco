@@ -6127,7 +6127,7 @@ def sos_send():
         dead = []
         for q in _sos_clients:
             try: q.put_nowait(msg)
-            except Exception: dead.append(q)
+            except queue.Full: dead.append(q)
         for q in dead: _sos_clients.remove(q)
         reached = len(_sos_clients)
     db_manager.write_audit(session.get("username", "?"), "SOS_ALERT",
@@ -6147,7 +6147,7 @@ def sos_clear():
         dead = []
         for q in _sos_clients:
             try: q.put_nowait(msg)
-            except Exception: dead.append(q)
+            except queue.Full: dead.append(q)
         for q in dead: _sos_clients.remove(q)
     db_manager.write_audit(session.get("username", "?"), "SOS_CLEAR", "all-clear issued")
     return jsonify({"success": True})
