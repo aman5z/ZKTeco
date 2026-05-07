@@ -350,14 +350,34 @@ function valLayout(v){ lset('layout', v); document.body.setAttribute('data-layou
 function valFont(v){ lset('font', v); document.body.setAttribute('data-font', v); }
 function valGlass(v){ lset('glass', !!v); document.body.setAttribute('data-glass', !!v); }
 
+// Themes that map to a light background (used for syncing embedded AD app)
+const LIGHT_THEMES = ['light', 'cream', 'grey', 'rose', 'slate'];
+
 function setTheme(t){
   lset('theme',t);
   document.documentElement.setAttribute('data-theme',t);
   document.querySelectorAll('.theme-btn').forEach(b=>b.classList.remove('active'));
+  // Mark active in settings palette
   const btn = document.getElementById(t+'ThemeBtn');
   if(btn) btn.classList.add('active');
+  // Mark active in header picker
+  const pbtn = document.getElementById('tp-'+t+'ThemeBtn');
+  if(pbtn) pbtn.classList.add('active');
+  // Sync the embedded AD app's data-theme so it matches the global theme
+  const adApp = document.getElementById('ad-app');
+  if(adApp) adApp.setAttribute('data-theme', LIGHT_THEMES.includes(t) ? 'light' : 'dark');
 }
 function toggleTheme(){setTheme(document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark')}
+function toggleThemePicker(){
+  const p=document.getElementById('themePicker');
+  if(!p) return;
+  p.style.display=p.style.display==='none'?'block':'none';
+}
+document.addEventListener('click',function(e){
+  const p=document.getElementById('themePicker');
+  const btn=document.getElementById('themeBtn');
+  if(p&&btn&&!p.contains(e.target)&&e.target!==btn) p.style.display='none';
+});
 
 window.termIframeLoaded = function() { console.log('Terminal iframe loaded'); };
 window.termIframeError = function() { console.warn('Terminal iframe error'); };
