@@ -1607,6 +1607,11 @@ input:checked+.slider:before{transform:translateX(16px);background:#000}
       <div class="sb-item" onclick="showADSection('tools')" id="sb-ad-tools" data-adsec="tools">
         <span class="sb-icon">🧰</span> AD Tools
       </div>
+
+      <div class="sb-section" style="color:#ff3333">🚨 Emergency</div>
+      <div class="sb-item" onclick="showPage('sos')" id="sb-sos" style="color:#ff3333;font-weight:600">
+        <span class="sb-icon">🆘</span> SOS Admin
+      </div>
     </div>
 
     <!-- MAIN CONTENT -->
@@ -2626,22 +2631,9 @@ input:checked+.slider:before{transform:translateX(16px);background:#000}
         </div>
       </div>
 
-      <!-- ── ZK ATTENDANCE (embedded iframe) ── -->
-      <div class="page" id="page-zk-main">
-        <div class="zk-subnav">
-          <button class="btn btn-secondary btn-sm" onclick="showZkSection('overview')"  id="zknav-overview">📊 Overview</button>
-          <button class="btn btn-secondary btn-sm" onclick="showZkSection('today')"     id="zknav-today">📅 Today</button>
-          <button class="btn btn-secondary btn-sm" onclick="showZkSection('history')"   id="zknav-history">🗂 History</button>
-          <button class="btn btn-secondary btn-sm" onclick="showZkSection('employees')" id="zknav-employees">👥 Employees</button>
-          <button class="btn btn-secondary btn-sm" onclick="showZkSection('devices')"   id="zknav-devices">🖥 Devices</button>
-          <button class="btn btn-secondary btn-sm" onclick="showZkSection('punch')"     id="zknav-punch">⏱ Punch</button>
-          <button class="btn btn-secondary btn-sm" onclick="showZkSection('admin')"     id="zknav-admin" data-perm="admin">⚙ Admin</button>
-          <button class="btn btn-secondary btn-sm" style="margin-left:auto" onclick="window.open('/zk','_blank')" title="Open in new tab">⧉</button>
-        </div>
-        <iframe id="zkMainFrame" src="/zk?embedded=1"
-          style="flex:1;width:100%;border:none;display:block;min-height:0"
-          onload="window._zkFrameReady=true;if(window._zkPendingSection){window._doSendZkSection(window._zkPendingSection);window._zkPendingSection=null;}"></iframe>
-      </div>
+      <!-- ── ZK ATTENDANCE (redirects to main sections — no separate iframe) ── -->
+      <!-- page-zk-main is kept as a no-op placeholder; showZkSection() routes directly -->
+      <div class="page" id="page-zk-main" style="display:none"></div>
 
       <!-- ── AD MANAGEMENT (embedded inline) ── -->
       <div class="page" id="page-ad-main">
@@ -3397,6 +3389,97 @@ input:checked+.slider:before{transform:translateX(16px);background:#000}
         </div>
       </div>
 
+      <!-- ── SOS / EMERGENCY BROADCAST ── -->
+      <div class="page" id="page-sos">
+        <div class="page-hdr">
+          <div class="page-hdr-left">
+            <h2 style="color:#ff3333">🆘 SOS — Emergency Broadcast</h2>
+            <p>Send emergency alerts to all connected teacher devices in real-time. Teacher page: <a href="/sos" target="_blank" style="color:var(--accent)">/sos</a></p>
+          </div>
+          <div class="page-actions">
+            <div id="sos-status-dot" style="width:10px;height:10px;border-radius:50%;background:var(--text3);display:inline-block;margin-right:6px"></div>
+            <span id="sos-status-text" style="font-size:12px;color:var(--text2)">Checking...</span>
+            <a href="/sos" target="_blank" class="btn btn-secondary btn-sm">👨‍🏫 Teacher View</a>
+          </div>
+        </div>
+
+        <!-- Stats row -->
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);margin-bottom:16px;border-radius:var(--radius);overflow:hidden">
+          <div style="background:var(--surface);padding:20px;text-align:center">
+            <div style="font-size:32px;font-family:monospace;line-height:1" id="sos-stat-connected">0</div>
+            <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text2);margin-top:6px">Teachers Online</div>
+          </div>
+          <div style="background:var(--surface);padding:20px;text-align:center">
+            <div style="font-size:32px;font-family:monospace;line-height:1" id="sos-stat-sent">0</div>
+            <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text2);margin-top:6px">Alerts Sent</div>
+          </div>
+          <div style="background:var(--surface);padding:20px;text-align:center">
+            <div style="font-size:32px;font-family:monospace;line-height:1" id="sos-stat-time">--:--</div>
+            <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text2);margin-top:6px">Last Alert</div>
+          </div>
+        </div>
+
+        <!-- Active alert banner -->
+        <div id="sos-active-banner" style="display:none;background:rgba(255,26,26,0.1);border:1px solid rgba(255,26,26,0.3);padding:14px 18px;margin-bottom:16px;border-radius:var(--radius);align-items:center;gap:12px">
+          <div style="width:10px;height:10px;border-radius:50%;background:#ff1a1a;animation:sos-blink 1s infinite;flex-shrink:0"></div>
+          <span style="flex:1;font-size:13px;color:#ff6666">⚠️ ALERT ACTIVE — Teachers are seeing the emergency screen</span>
+          <button class="btn btn-sm" style="background:var(--green);color:#000;font-size:12px;padding:6px 14px" onclick="sosSendAllClear()">✅ SEND ALL-CLEAR</button>
+        </div>
+        <style>@keyframes sos-blink{0%,100%{opacity:1}50%{opacity:0}}</style>
+
+        <!-- Compose -->
+        <div class="card" style="padding:20px;margin-bottom:16px">
+          <div style="font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--text2);margin-bottom:16px">Compose Alert</div>
+
+          <div style="margin-bottom:14px">
+            <label style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text2);display:block;margin-bottom:8px">Alert Level</label>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+              <button id="sos-lvl-critical" class="btn btn-sm" style="border:2px solid #ff1a1a;color:#ff1a1a;background:rgba(255,26,26,0.1)" onclick="sosSetLevel('critical')">🔴 CRITICAL</button>
+              <button id="sos-lvl-high"     class="btn btn-sm" style="border:2px solid var(--border);color:var(--text2);background:transparent" onclick="sosSetLevel('high')">🟠 HIGH</button>
+              <button id="sos-lvl-info"     class="btn btn-sm" style="border:2px solid var(--border);color:var(--text2);background:transparent" onclick="sosSetLevel('info')">🔵 INFO</button>
+            </div>
+          </div>
+
+          <div style="margin-bottom:14px">
+            <label style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text2);display:block;margin-bottom:8px">Quick Presets</label>
+            <div style="display:flex;flex-wrap:wrap;gap:6px">
+              <button class="btn btn-secondary btn-sm" onclick="sosLoadPreset('missile')">🚀 Missile</button>
+              <button class="btn btn-secondary btn-sm" onclick="sosLoadPreset('shelter')">🏠 Shelter</button>
+              <button class="btn btn-secondary btn-sm" onclick="sosLoadPreset('evacuate')">🚪 Evacuate</button>
+              <button class="btn btn-secondary btn-sm" onclick="sosLoadPreset('lockdown')">🔒 Lockdown</button>
+              <button class="btn btn-secondary btn-sm" onclick="sosLoadPreset('fire')">🔥 Fire</button>
+              <button class="btn btn-secondary btn-sm" onclick="sosLoadPreset('drill')">📋 Drill</button>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+            <div><label style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text2);display:block;margin-bottom:6px">Alert Title</label>
+              <input class="form-control" id="sos-title" placeholder="e.g. EMERGENCY — TAKE SHELTER NOW"></div>
+            <div><label style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text2);display:block;margin-bottom:6px">Arabic Title (optional)</label>
+              <input class="form-control" id="sos-title-ar" placeholder="تنبيه طارئ" dir="rtl"></div>
+          </div>
+          <div style="margin-bottom:12px">
+            <label style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text2);display:block;margin-bottom:6px">Alert Message</label>
+            <textarea class="form-control" id="sos-message" rows="2" placeholder="Main alert body text..."></textarea>
+          </div>
+          <div style="margin-bottom:16px">
+            <label style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text2);display:block;margin-bottom:6px">Teacher Instructions</label>
+            <textarea class="form-control" id="sos-instructions" rows="3" placeholder="Step-by-step instructions for teachers..."></textarea>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <button class="btn" id="sos-send-btn" style="background:#ff1a1a;color:#fff" onclick="sosSendAlert()">📡 BROADCAST ALERT</button>
+            <button class="btn btn-secondary" onclick="sosClearForm()">CLEAR</button>
+            <span id="sos-feedback" style="font-size:12px;color:var(--text2)"></span>
+          </div>
+        </div>
+
+        <!-- Broadcast log -->
+        <div class="card" style="padding:20px">
+          <div style="font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--text2);margin-bottom:14px">Broadcast Log</div>
+          <div id="sos-history-list"><div data-placeholder style="color:var(--text2);font-size:13px">No alerts sent yet.</div></div>
+        </div>
+      </div><!-- /page-sos -->
+
     </div><!-- /main-content -->
   </div><!-- /app-body -->
 
@@ -3710,41 +3793,24 @@ function _loadSocketIOFallback() {
 <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
 <script src="js/voip.js"></script>
 <script>
-// ── ZK ATTENDANCE: section navigation via embedded iframe ─────────────────
-window._zkFrameReady   = false;
-window._zkPendingSection = null;
-
-window._doSendZkSection = function(section) {
-  const iframe = document.getElementById('zkMainFrame');
-  if (!iframe) return;
-  if (window._zkFrameReady) {
-    try {
-      // Use same-origin target to prevent message leaking to unexpected frames
-      iframe.contentWindow.postMessage({ zkAction: 'showSection', section }, window.location.origin);
-    } catch(e) {
-      console.warn('[ZK] postMessage failed:', e.message);
-    }
-  } else {
-    window._zkPendingSection = section;
-  }
+// ── ZK ATTENDANCE: section navigation (maps directly to existing pages) ────
+var _ZK_SECTION_MAP = {
+  overview:  'dashboard',
+  today:     'today',
+  history:   'history',
+  employees: 'employees',
+  devices:   'devices',
+  punch:     'punch',
+  admin:     'admin'
 };
 
 function showZkSection(section) {
-  // Navigate to the embedded ZK page
-  showPage('zk-main');
-
-  // Highlight sidebar item
+  var page = _ZK_SECTION_MAP[section] || section;
+  showPage(page);
+  // Keep ZK sidebar items highlighted so the section header stays visually selected
   document.querySelectorAll('[data-zksec]').forEach(function(el) { el.classList.remove('active'); });
   var sb = document.getElementById('sb-zk-' + section);
   if (sb) sb.classList.add('active');
-
-  // Highlight the in-page subnav button
-  document.querySelectorAll('#page-zk-main .zk-subnav .btn').forEach(function(b) { b.classList.remove('active'); });
-  var nb = document.getElementById('zknav-' + section);
-  if (nb) nb.classList.add('active');
-
-  // Tell the iframe to show the right section
-  window._doSendZkSection(section);
 }
 
 
@@ -3756,6 +3822,8 @@ function showADSection(tab) {
   if (sb) sb.classList.add('active');
   // Switch tab in embedded ad content
   adSwitchTab(tab);
+  // Auto-login if credentials are available and not yet logged in
+  if (typeof adAutoLogin === 'function') adAutoLogin();
 }
 
 /* ── MOBILE SIDEBAR TOGGLE ── */
@@ -5129,12 +5197,184 @@ function _adTryAutoLogin(email, password, apiOverride) {
   adDoLogin();
 }
 
+// adAutoLogin — called from showADSection() to avoid repeating login
+// Uses GAS credentials already stored in localStorage (same as _adTryAutoLogin)
+function adAutoLogin() {
+  if (adTok) return; // already authenticated
+  const em  = localStorage.getItem('gasEmail') || '';
+  const pw  = localStorage.getItem('gasPass')  || '';
+  const url = localStorage.getItem('gasUrl')   || '';
+  if (url) adAPI = url;
+  _adTryAutoLogin(em, pw);
+}
+
 window.addEventListener('DOMContentLoaded', function() {
   const em = localStorage.getItem('gasEmail') || '';
   const pw = localStorage.getItem('gasPass')  || '';
   const url = localStorage.getItem('gasUrl')  || '';
   if (url) adAPI = url;           // refresh in case it changed after script init
   _adTryAutoLogin(em, pw);
+});
+</script>
+
+<script>
+// ── SOS / EMERGENCY BROADCAST ──────────────────────────────────────────────
+var _sosLevel = 'critical';
+var _sosAlertCount = 0;
+var _sosPolling = false;
+
+var SOS_PRESETS = {
+  missile:  { level:'critical', title:'🚀 MISSILE WARNING — TAKE SHELTER IMMEDIATELY', message:'A missile threat has been detected in the region. This is not a drill.', instructions:'1. Move all students to interior rooms / basement immediately\n2. Stay away from windows and exterior walls\n3. Lock classroom doors\n4. Remain in shelter until ALL-CLEAR is issued\n5. Do NOT use mobile phones unless emergency' },
+  shelter:  { level:'critical', title:'⚠️ SHELTER IN PLACE — DO NOT LEAVE BUILDING',  message:'An external threat has been identified. All staff and students must remain inside.', instructions:'1. Lock all exterior doors\n2. Move students to interior corridors\n3. Close all windows and vents\n4. Take attendance and report missing students to admin\n5. Await further instructions' },
+  evacuate: { level:'high',     title:'🚪 EVACUATION ORDER — EXIT BUILDING NOW',        message:'Immediate evacuation of the school building is required.',                        instructions:'1. Use nearest emergency exit\n2. Do NOT use elevators\n3. Lead students to assembly point: MAIN GATE PARKING\n4. Take register / attendance sheet\n5. Report to your floor warden' },
+  lockdown: { level:'critical', title:'🔒 LOCKDOWN — SECURE YOUR CLASSROOM',            message:'School is in lockdown. All movement inside the building must stop.',             instructions:'1. Lock and barricade your classroom door\n2. Turn off lights\n3. Move students away from doors and windows\n4. Silence all phones\n5. Do NOT open the door until police/admin gives all-clear' },
+  fire:     { level:'high',     title:'🔥 FIRE ALERT — EVACUATE NOW',                   message:'A fire or smoke has been detected in the building.',                              instructions:'1. Activate nearest fire alarm if not already active\n2. Evacuate via fire exits — do NOT use elevators\n3. Assembly point: Football field\n4. Do not re-enter until fire brigade gives clearance' },
+  drill:    { level:'info',     title:'📋 EMERGENCY DRILL IN PROGRESS',                  message:'This is a scheduled emergency drill. Please treat as a real emergency.',         instructions:'1. Follow your emergency procedure as normal\n2. This is a DRILL — remain calm\n3. Evacuate/shelter as per instruction\n4. Report any issues to admin after drill' }
+};
+
+function sosSetLevel(l) {
+  _sosLevel = l;
+  ['critical','high','info'].forEach(function(lvl) {
+    var btn = document.getElementById('sos-lvl-' + lvl);
+    if (!btn) return;
+    if (lvl === l) {
+      var colors = { critical:'#ff1a1a', high:'#ff8c00', info:'#1a6fff' };
+      btn.style.border = '2px solid ' + colors[lvl];
+      btn.style.color  = colors[lvl];
+      btn.style.background = 'rgba(100,100,100,0.1)';
+    } else {
+      btn.style.border = '2px solid var(--border)';
+      btn.style.color  = 'var(--text2)';
+      btn.style.background = 'transparent';
+    }
+  });
+}
+
+function sosLoadPreset(key) {
+  var p = SOS_PRESETS[key]; if (!p) return;
+  sosSetLevel(p.level);
+  document.getElementById('sos-title').value        = p.title;
+  document.getElementById('sos-message').value      = p.message;
+  document.getElementById('sos-instructions').value = p.instructions;
+}
+
+function sosClearForm() {
+  document.getElementById('sos-title').value        = '';
+  document.getElementById('sos-title-ar').value     = '';
+  document.getElementById('sos-message').value      = '';
+  document.getElementById('sos-instructions').value = '';
+  sosSetLevel('critical');
+}
+
+async function sosSendAlert() {
+  var title        = document.getElementById('sos-title').value.trim();
+  var message      = document.getElementById('sos-message').value.trim();
+  var instructions = document.getElementById('sos-instructions').value.trim();
+  var titleAr      = document.getElementById('sos-title-ar').value.trim();
+  if (!title)   { document.getElementById('sos-feedback').textContent = '⚠ Enter an alert title'; return; }
+  if (!message) { document.getElementById('sos-feedback').textContent = '⚠ Enter an alert message'; return; }
+  var btn = document.getElementById('sos-send-btn');
+  btn.textContent = 'SENDING...'; btn.disabled = true;
+  document.getElementById('sos-feedback').textContent = '';
+  try {
+    var r = await fetch('/sos/send', {
+      method: 'POST', credentials: 'include',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ level: _sosLevel, title, titleAr, message, instructions })
+    });
+    var d = await r.json();
+    btn.textContent = '📡 BROADCAST ALERT'; btn.disabled = false;
+    if (d.success) {
+      _sosAlertCount++;
+      document.getElementById('sos-stat-sent').textContent = _sosAlertCount;
+      document.getElementById('sos-feedback').textContent  = '✅ Sent to ' + d.reached + ' teacher(s)';
+      sosAddHistory(title, _sosLevel, d.reached);
+      sosPoll();
+    } else {
+      document.getElementById('sos-feedback').textContent = '❌ ' + (d.error || 'Failed');
+    }
+  } catch(e) {
+    btn.textContent = '📡 BROADCAST ALERT'; btn.disabled = false;
+    document.getElementById('sos-feedback').textContent = '❌ Server error: ' + e.message;
+  }
+}
+
+async function sosSendAllClear() {
+  try {
+    var r = await fetch('/sos/clear', { method: 'POST', credentials: 'include', headers: {'Content-Type':'application/json'}, body: '{}' });
+    var d = await r.json();
+    if (d.success) {
+      sosAddHistory('ALL-CLEAR issued', 'clear', '—');
+      document.getElementById('sos-feedback').textContent = '✅ All-clear sent';
+      sosPoll();
+    }
+  } catch(e) {}
+}
+
+function sosAddHistory(title, level, reached) {
+  var list = document.getElementById('sos-history-list');
+  if (!list) return;
+  // Remove placeholder element (identified by data-placeholder attribute)
+  var placeholder = list.querySelector('[data-placeholder]');
+  if (placeholder) placeholder.remove();
+  var time  = new Date().toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  var colors = { critical:'#ff1a1a', high:'#ff8c00', info:'#4a9eff', clear:'#00cc66' };
+  var c = colors[level] || '#888';
+  var item = document.createElement('div');
+  item.style.cssText = 'padding:10px 0;border-bottom:1px solid var(--border);font-size:13px;display:flex;gap:10px;align-items:flex-start';
+  // Build with DOM methods to avoid XSS
+  var timeSpan = document.createElement('span');
+  timeSpan.style.cssText = 'font-family:monospace;color:var(--text2);font-size:11px;flex-shrink:0;margin-top:2px';
+  timeSpan.textContent = time;
+  var badgeSpan = document.createElement('span');
+  badgeSpan.style.cssText = 'font-size:10px;padding:2px 8px;background:' + c + '22;color:' + c + ';font-family:monospace;flex-shrink:0';
+  badgeSpan.textContent = level.toUpperCase();
+  var msgSpan = document.createElement('span');
+  msgSpan.textContent = title + ' → ' + reached + ' connected';
+  item.appendChild(timeSpan);
+  item.appendChild(badgeSpan);
+  item.appendChild(msgSpan);
+  list.prepend(item);
+}
+
+async function sosPoll() {
+  try {
+    var r = await fetch('/sos/status');
+    var d = await r.json();
+    var dot  = document.getElementById('sos-status-dot');
+    var txt  = document.getElementById('sos-status-text');
+    var banner = document.getElementById('sos-active-banner');
+    if (dot)  dot.style.background = '#00cc66';
+    if (txt)  txt.textContent = 'Server live · ' + d.connected + ' teacher(s) online';
+    if (banner) banner.style.display = d.hasAlert ? 'flex' : 'none';
+    document.getElementById('sos-stat-connected').textContent = d.connected;
+    var now = new Date();
+    document.getElementById('sos-stat-time').textContent = now.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'});
+  } catch(e) {
+    var dot = document.getElementById('sos-status-dot');
+    var txt = document.getElementById('sos-status-text');
+    if (dot) dot.style.background = '#ff3333';
+    if (txt) txt.textContent = 'Server offline';
+  }
+}
+
+// Start polling when SOS page becomes active
+var _sosPollInterval = null;
+var _origShowPage = typeof showPage === 'function' ? showPage : null;
+document.addEventListener('DOMContentLoaded', function() {
+  // Override showPage to start/stop SOS polling
+  var origSP = window.showPage;
+  if (origSP) {
+    window.showPage = function(page) {
+      origSP(page);
+      if (page === 'sos') {
+        sosPoll();
+        if (!_sosPollInterval) _sosPollInterval = setInterval(sosPoll, 4000);
+      } else {
+        if (_sosPollInterval) { clearInterval(_sosPollInterval); _sosPollInterval = null; }
+      }
+    };
+  }
 });
 </script>
 
