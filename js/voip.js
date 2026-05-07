@@ -15,20 +15,22 @@ var VOIP_ICE_SERVERS = [
 ];
 
 /* ── State ─────────────────────────────────────────────────── */
-var _sio           = null;   // socket.io client socket
-var _rtc           = null;   // RTCPeerConnection
-var _localStream   = null;   // MediaStream (microphone)
-var _remoteStream  = null;   // remote audio
-var _remoteAudio   = null;   // <audio> element for remote
-var _activeCallId  = null;
-var _activePeer    = null;   // username of the other party (for ICE routing)
-var _callMuted     = false;
-var _callTimer     = null;
-var _callStart     = null;
-var _ringtone      = null;   // {stop()}
-var _voipOnline    = [];     // [{username, name, badge, dept}] from server
-var _voipContacts  = [];     // all contacts (online merged with employee list)
-var _voipEnabled   = false;  // true once server confirms socketio available
+var _sio                  = null;   // socket.io client socket
+var _rtc                  = null;   // RTCPeerConnection
+var _localStream          = null;   // MediaStream (microphone)
+var _remoteStream         = null;   // remote audio
+var _remoteAudio          = null;   // <audio> element for remote
+var _activeCallId         = null;
+var _activePeer           = null;   // username of the other party (for ICE routing)
+var _callingPeerName      = null;   // display name of outgoing call target
+var _pendingIceCandidates = [];     // ICE candidates queued before RTCPeerConnection is ready
+var _callMuted            = false;
+var _callTimer            = null;
+var _callStart            = null;
+var _ringtone             = null;   // {stop()}
+var _voipOnline           = [];     // [{username, name, badge, dept}] from server
+var _voipContacts         = [];     // all contacts (online merged with employee list)
+var _voipEnabled          = false;  // true once server confirms socketio available
 
 /* Delay before auto-connect — lets page fully initialise first */
 const VOIP_AUTO_CONNECT_DELAY_MS = 2500;
@@ -150,10 +152,14 @@ function _voipConnect() {
   });
 
   _sio.on('voip_ice', function(data) {
-    if (_rtc && data.candidate) {
+    if (!data.candidate) return;
+    if (_rtc) {
       _rtc.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(function(e) {
         console.warn('[VoIP] addIceCandidate failed:', e);
       });
+    } else {
+      // RTCPeerConnection not created yet (callee hasn't answered) — queue for later
+      _pendingIceCandidates.push(data.candidate);
     }
   });
 
@@ -192,7 +198,12 @@ function voipCallEmployee(targetBadge, targetName) {
   var me       = _voipMe();
   var meName   = _voipMeInfo().name;
   var callName = targetName || targetBadge;
-  _activePeer  = targetBadge;  // track for ICE routing
+  _activePeer      = targetBadge;  // track for ICE routing
+  _callingPeerName = callName;
+  // Pre-assign call ID so ICE candidates emitted during offer creation carry
+  // a valid ID. Without this, candidates fire before the server round-trip
+  // completes and are silently dropped.
+  _activeCallId = String(Date.now());
 
   // Navigate to VoIP page
   if (typeof showPage !== 'undefined') showPage('voip');
@@ -211,6 +222,7 @@ function voipCallEmployee(targetBadge, targetName) {
       caller      : me,
       caller_name : meName,
       callee      : targetBadge,
+      call_id     : _activeCallId,
       offer_sdp   : offer.sdp
     });
   }).catch(function(err) {
@@ -280,6 +292,15 @@ function voipAnswerCall() {
 
     return _rtc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: _pendingOfferSdp }));
   }).then(function() {
+    // Apply ICE candidates that arrived before RTCPeerConnection was created
+    var queued = _pendingIceCandidates.slice();
+    _pendingIceCandidates = [];
+    return Promise.all(queued.map(function(c) {
+      return _rtc.addIceCandidate(new RTCIceCandidate(c)).catch(function(e) {
+        console.warn('[VoIP] queued addIceCandidate failed:', e);
+      });
+    }));
+  }).then(function() {
     return _rtc.createAnswer();
   }).then(function(answer) {
     return _rtc.setLocalDescription(answer).then(function() { return answer; });
@@ -316,8 +337,7 @@ function _handleAnswered(data) {
   if (!_rtc) return;
   _rtc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: data.answer_sdp }))
     .then(function() {
-      var peerEl  = document.getElementById('voipRingName');
-      var peer    = peerEl ? peerEl.textContent : (data.call_id || 'Peer');
+      var peer = _callingPeerName || _activePeer || 'Peer';
       _voipShowActive(peer);
       _voipStartCallTimer(peer);
       _voipShowHud(peer);
@@ -412,13 +432,15 @@ function _voipOnCallEnd(reason, durationHint) {
 function _voipCleanupCall() {
   _voipStopRingtone();
   clearInterval(_callTimer);
-  _callTimer  = null;
-  _callStart  = null;
-  _callMuted  = false;
+  _callTimer         = null;
+  _callStart         = null;
+  _callMuted         = false;
   _activeCallId      = null;
   _activePeer        = null;
+  _callingPeerName   = null;
   _pendingOfferSdp   = null;
   _pendingCallerId   = null;
+  _pendingIceCandidates = [];
 
   if (_localStream) {
     _localStream.getTracks().forEach(function(t) { t.stop(); });

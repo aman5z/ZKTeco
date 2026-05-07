@@ -5883,6 +5883,25 @@ if SOCKETIO_AVAILABLE and socketio:
                 _voip_online_info.pop(u, None)
         if to_remove:
             _voip_broadcast_online()
+        # End any active calls involving the disconnected user and notify the other party
+        for call_id in list(_voip_active_calls.keys()):
+            call = _voip_active_calls.get(call_id)
+            if not call:
+                continue
+            if call['caller'] in to_remove or call['callee'] in to_remove:
+                _voip_active_calls.pop(call_id, None)
+                other = call['callee'] if call['caller'] in to_remove else call['caller']
+                with _voip_online_lock:
+                    other_sid = _voip_online.get(other)
+                if other_sid:
+                    socketio.emit('voip_ended', {
+                        'call_id': call_id, 'initiator': 'remote', 'duration': 0
+                    }, to=other_sid)
+                if call.get('db_id'):
+                    dur = int(time.time() - call.get('started_at', time.time()))
+                    status = 'disconnected' if dur > 0 else 'missed'
+                    _log_call(call['caller'], call['callee'],
+                              status=status, duration_s=dur, call_id=call['db_id'])
 
     @socketio.on('voip_register')
     def _voip_register(data):
@@ -5902,7 +5921,7 @@ if SOCKETIO_AVAILABLE and socketio:
 
     @socketio.on('voip_call')
     def _voip_call(data):
-        """Caller initiates: {caller, caller_name, callee, offer_sdp}"""
+        """Caller initiates: {caller, caller_name, callee, call_id, offer_sdp}"""
         caller = data.get('caller', '')
         callee = data.get('callee', '')
         if not caller or not callee:
@@ -5912,7 +5931,9 @@ if SOCKETIO_AVAILABLE and socketio:
         if not callee_sid:
             emit('voip_error', {'message': '{} is not online'.format(callee), 'callee': callee})
             return
-        call_id = str(int(time.time() * 1000))
+        # Use client-provided call_id so ICE candidates emitted during offer
+        # creation (before the server round-trip) carry the same ID.
+        call_id = data.get('call_id') or str(int(time.time() * 1000))
         db_id   = _log_call(caller, callee, status='ringing')
         _voip_active_calls[call_id] = {
             'caller':     caller,
