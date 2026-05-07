@@ -79,9 +79,18 @@ A full attendance management solution for ZKTeco biometric devices. It includes 
 - **Token Queue / Counters:** digital service counters (HR, Finance, Medical, etc.) with visual queue
 - **Notice Board:** post and manage announcements visible to all users
 - **Internal Messaging:** peer-to-peer chat between dashboard users with read receipts
+- **VoIP Calling:** real-time browser-to-browser voice calls via WebRTC + Socket.IO signaling
 - **Sticky Notes:** private, per-user color-coded notes stored in the database
 - **Google Drive Integration:** browse and upload files to a designated Drive folder (via GAS)
 - **Linode / Cloud Terminal:** integrated web shell via `ttyd` and an nginx proxy
+
+### 🆘 SOS Emergency Broadcast
+- Broadcast critical emergency alerts (missile warning, lockdown, fire, evacuation, shelter-in-place) to all connected teacher devices in real-time
+- Teacher view (`/sos`) displays full-screen alert with audio siren and multi-level severity (Critical / High / Info)
+- Arabic title support for bilingual schools
+- One-click preset alerts for common emergency scenarios
+- Live teacher count — heartbeat-based presence tracking shows how many teacher screens are active
+- All-clear broadcast returns teacher screens to standby automatically
 
 ### Database & Admin Tools
 - **SQL Console:** run raw SQLite queries directly from the UI (admin only)
@@ -330,9 +339,18 @@ It features full PWA support, offline punch caching via IndexedDB, four UI theme
 - **Token Queue / Counters:** Digital service counters (HR, Finance, Medical, etc.) with live visual queue display.
 - **Notice Board:** Post and manage announcements visible to all logged-in users.
 - **Internal Messaging:** Peer-to-peer chat between dashboard users with read receipts and online presence indicators.
+- **VoIP Calling:** Real-time browser-to-browser voice calls via WebRTC + Socket.IO signaling, with call history.
 - **Sticky Notes:** Private, per-user color-coded notes persisted in the database.
 - **Google Drive Integration:** Browse and upload files directly to a designated Google Drive folder (via GAS backend).
 - **Cloud Terminal:** Integrated web shell connecting to your server via `ttyd` and an nginx proxy.
+
+### 🆘 SOS Emergency Broadcast
+
+- Broadcast critical emergency alerts to all connected teacher screens in real-time via Server-Sent Events.
+- Teacher view (`/sos`) displays a full-screen alert with audio siren and multi-level severity (Critical / High / Info).
+- Arabic title support for bilingual schools; preset scenarios for missile warnings, lockdowns, fires, evacuations, and drills.
+- Live heartbeat-based teacher count shows exactly how many teacher screens are actively connected.
+- All-clear broadcast automatically returns teacher screens to standby.
 
 <img src="https://github.com/user-attachments/assets/33247b6e-dec4-4f83-9b63-8d9d577368ae">
 <img src="https://github.com/user-attachments/assets/5ee74551-b9e5-44d4-906d-88317393e6c4">
@@ -373,9 +391,10 @@ A comprehensive suite of client-side utilities built into the app — no server 
 | Layer | Details |
 |-------|---------|
 | **Backend** | Python 3.8+, Flask, SQLite (WAL mode), `pyzk` for device communication |
-| **Frontend** | HTML5, CSS3 (Native CSS Variables + 4 built-in themes), Vanilla JavaScript (ES6+), 21 modular JS files |
+| **Real-time** | Flask-SocketIO (WebRTC VoIP signaling), Server-Sent Events (SSE) for live refresh and SOS alerts |
+| **Frontend** | HTML5, CSS3 (Native CSS Variables + 5 built-in themes), Vanilla JavaScript (ES6+), 22 modular JS files |
 | **Offline Storage** | `localStorage` for settings; `IndexedDB` + Service Workers for offline punch caching |
-| **External Libraries (CDN)** | `JsBarcode`, `qrcode.js`, `pdf-lib`, `SheetJS / xlsx`, `Chart.js` |
+| **External Libraries (CDN)** | `JsBarcode`, `qrcode.js`, `pdf-lib`, `SheetJS / xlsx`, `Chart.js`, `Socket.IO` |
 | **Notifications** | Telegram Bot API, Gmail SMTP (SSL) |
 | **Cloud Backend** | Google Apps Script (GAS) for ticketing, Drive, and token queues |
 

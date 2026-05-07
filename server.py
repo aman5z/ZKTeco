@@ -3890,6 +3890,9 @@ _sse_lock    = threading.Lock()
 _sos_clients   = []          # SSE teacher connections
 _sos_lock      = threading.Lock()
 _sos_last_alert = None       # last alert dict, or None
+_sos_teachers  = {}          # client_id -> last_seen timestamp; stale entries (>_SOS_PRUNE_AFTER s) pruned in sos_status()
+_SOS_ACTIVE_THRESHOLD = 45   # seconds — must stay below 3× the teacher heartbeat interval (20 s)
+_SOS_PRUNE_AFTER      = 120  # seconds — hard timeout; entries older than this are removed
 
 def _sse_push(data_dict):
     msg = "data: {0}\n\n".format(json.dumps(data_dict))
@@ -6156,10 +6159,39 @@ def sos_clear():
 @app.route("/sos/status")
 def sos_status():
     """Public status endpoint for SOS."""
+    now = time.time()
     with _sos_lock:
-        connected = len(_sos_clients)
         has_alert = _sos_last_alert is not None
+        # Prune entries with no heartbeat for >_SOS_PRUNE_AFTER s to prevent unbounded growth
+        stale = [cid for cid, ts in _sos_teachers.items() if now - ts >= _SOS_PRUNE_AFTER]
+        for cid in stale:
+            del _sos_teachers[cid]
+        # Count teachers that sent a heartbeat within the active threshold
+        active = [cid for cid, ts in _sos_teachers.items() if now - ts < _SOS_ACTIVE_THRESHOLD]
+        connected = len(active)
     return jsonify({"connected": connected, "hasAlert": has_alert})
+
+
+@app.route("/sos/heartbeat", methods=["POST"])
+def sos_heartbeat():
+    """Teacher page pings this every 20 s to report it is online."""
+    data = request.get_json(silent=True) or {}
+    cid = data.get("id", "")
+    if cid:
+        with _sos_lock:
+            _sos_teachers[cid] = time.time()
+    return jsonify({"ok": True})
+
+
+@app.route("/sos/offline", methods=["POST"])
+def sos_offline():
+    """Teacher page calls this on unload to immediately deregister."""
+    data = request.get_json(silent=True) or {}
+    cid = data.get("id", "")
+    if cid:
+        with _sos_lock:
+            _sos_teachers.pop(cid, None)
+    return jsonify({"ok": True})
 
 
 # ==============================================================================

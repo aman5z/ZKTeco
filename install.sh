@@ -64,14 +64,18 @@ echo "  [2/5] Installing Python packages..."
 case "$PLATFORM" in
     termux)
         # Termux manages its own Python — no --break-system-packages needed
-        pip install flask pandas openpyxl pyzk werkzeug reportlab --quiet
+        pip install flask pandas openpyxl pyzk werkzeug reportlab \
+            flask-socketio simple-websocket httpx --quiet
         ;;
     macos)
-        pip3 install flask pandas openpyxl pyzk werkzeug reportlab --quiet 2>/dev/null || \
-            pip install flask pandas openpyxl pyzk werkzeug reportlab --quiet
+        pip3 install flask pandas openpyxl pyzk werkzeug reportlab \
+            flask-socketio simple-websocket httpx --quiet 2>/dev/null || \
+            pip install flask pandas openpyxl pyzk werkzeug reportlab \
+            flask-socketio simple-websocket httpx --quiet
         ;;
     *)
         pip install flask pandas openpyxl pyzk werkzeug reportlab \
+            flask-socketio simple-websocket httpx \
             --break-system-packages \
             --ignore-installed \
             --quiet
@@ -82,14 +86,17 @@ echo "  OK: Python packages installed"
 # ── Verify ───────────────────────────────────────────────────
 echo ""
 echo "  [3/5] Verifying installations..."
-$PYTHON -c "import flask"      && echo "    flask       OK" || echo "    flask       MISSING"
-$PYTHON -c "import pandas"     && echo "    pandas      OK" || echo "    pandas      MISSING"
-$PYTHON -c "import openpyxl"   && echo "    openpyxl    OK" || echo "    openpyxl    MISSING"
-$PYTHON -c "import zk"         && echo "    pyzk        OK" || echo "    pyzk        MISSING"
-$PYTHON -c "import werkzeug"   && echo "    werkzeug    OK" || echo "    werkzeug    MISSING"
-$PYTHON -c "import reportlab"  && echo "    reportlab   OK" || echo "    reportlab   MISSING"
-command -v mdb-export &>/dev/null && echo "    mdbtools    OK" || echo "    mdbtools    MISSING (MDB features unavailable)"
-command -v sqlite3    &>/dev/null && echo "    sqlite3     OK" || echo "    sqlite3     MISSING"
+$PYTHON -c "import flask"           && echo "    flask          OK" || echo "    flask          MISSING"
+$PYTHON -c "import pandas"          && echo "    pandas         OK" || echo "    pandas         MISSING"
+$PYTHON -c "import openpyxl"        && echo "    openpyxl       OK" || echo "    openpyxl       MISSING"
+$PYTHON -c "import zk"              && echo "    pyzk           OK" || echo "    pyzk           MISSING"
+$PYTHON -c "import werkzeug"        && echo "    werkzeug       OK" || echo "    werkzeug       MISSING"
+$PYTHON -c "import reportlab"       && echo "    reportlab      OK" || echo "    reportlab      MISSING"
+$PYTHON -c "import flask_socketio"  && echo "    flask-socketio OK" || echo "    flask-socketio MISSING"
+$PYTHON -c "import simple_websocket" && echo "    simple-websocket OK" || echo "    simple-websocket MISSING"
+$PYTHON -c "import httpx"           && echo "    httpx          OK" || echo "    httpx          MISSING"
+command -v mdb-export &>/dev/null && echo "    mdbtools       OK" || echo "    mdbtools       MISSING (MDB features unavailable)"
+command -v sqlite3    &>/dev/null && echo "    sqlite3        OK" || echo "    sqlite3        MISSING"
 
 # ── Employee export (if MDB present) ─────────────────────────
 echo ""
