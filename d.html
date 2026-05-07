@@ -392,10 +392,7 @@ body::before{
 .page{display:none;flex:1;overflow-y:auto;padding:20px 24px;animation:fadeUp .2s ease;flex-direction:column}
 #page-terminal{padding:0;overflow:hidden}
 #page-terminal.active{display:flex;flex-direction:column}
-#page-zk-main{padding:0;overflow:hidden}
-#page-zk-main.active{display:flex;flex-direction:column}
-.zk-subnav{background:var(--surface);border-bottom:1px solid var(--border);padding:6px 12px;display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;align-items:center}
-.zk-subnav .btn.active{background:var(--accent-dim);color:var(--accent);border-color:var(--accent)}
+
 .page.active{display:block}
 
 /* ── PAGE HEADER ── */
@@ -1562,29 +1559,6 @@ input:checked+.slider:before{transform:translateX(16px);background:#000}
         <span class="sb-icon">🔧</span> Settings
       </div>
 
-      <div class="sb-section">ZK Attendance</div>
-      <div class="sb-item" onclick="showZkSection('overview')" id="sb-zk-overview" data-zksec="overview">
-        <span class="sb-icon">📊</span> Overview
-      </div>
-      <div class="sb-item" onclick="showZkSection('today')" id="sb-zk-today" data-zksec="today">
-        <span class="sb-icon">📅</span> Today
-      </div>
-      <div class="sb-item" onclick="showZkSection('history')" id="sb-zk-history" data-zksec="history">
-        <span class="sb-icon">🗂</span> History
-      </div>
-      <div class="sb-item" onclick="showZkSection('employees')" id="sb-zk-employees" data-zksec="employees">
-        <span class="sb-icon">👥</span> Employees
-      </div>
-      <div class="sb-item" onclick="showZkSection('devices')" id="sb-zk-devices" data-zksec="devices">
-        <span class="sb-icon">🖥</span> Devices
-      </div>
-      <div class="sb-item" onclick="showZkSection('punch')" id="sb-zk-punch" data-zksec="punch">
-        <span class="sb-icon">⏱</span> Punch
-      </div>
-      <div class="sb-item" onclick="showZkSection('admin')" id="sb-zk-admin" data-zksec="admin" data-perm="admin">
-        <span class="sb-icon">⚙</span> Admin
-      </div>
-
       <div class="sb-section">AD Management</div>
       <div class="sb-item" onclick="showADSection('users')" id="sb-ad-users" data-adsec="users">
         <span class="sb-icon">👥</span> AD Users
@@ -2630,10 +2604,6 @@ input:checked+.slider:before{transform:translateX(16px);background:#000}
             onload="if(typeof termIframeLoaded !== 'undefined') termIframeLoaded()" onerror="if(typeof termIframeError !== 'undefined') termIframeError()"></iframe>
         </div>
       </div>
-
-      <!-- ── ZK ATTENDANCE (redirects to main sections — no separate iframe) ── -->
-      <!-- page-zk-main is kept as a no-op placeholder; showZkSection() routes directly -->
-      <div class="page" id="page-zk-main" style="display:none"></div>
 
       <!-- ── AD MANAGEMENT (embedded inline) ── -->
       <div class="page" id="page-ad-main">
@@ -3793,26 +3763,6 @@ function _loadSocketIOFallback() {
 <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
 <script src="js/voip.js"></script>
 <script>
-// ── ZK ATTENDANCE: section navigation (maps directly to existing pages) ────
-var _ZK_SECTION_MAP = {
-  overview:  'dashboard',
-  today:     'today',
-  history:   'history',
-  employees: 'employees',
-  devices:   'devices',
-  punch:     'punch',
-  admin:     'admin'
-};
-
-function showZkSection(section) {
-  var page = _ZK_SECTION_MAP[section] || section;
-  showPage(page);
-  // Keep ZK sidebar items highlighted so the section header stays visually selected
-  document.querySelectorAll('[data-zksec]').forEach(function(el) { el.classList.remove('active'); });
-  var sb = document.getElementById('sb-zk-' + section);
-  if (sb) sb.classList.add('active');
-}
-
 
 function showADSection(tab) {
   showPage('ad-main');

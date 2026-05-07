@@ -490,6 +490,24 @@
 
   function stopAlarm() { stopSiren(); }
 
+  // ---- HEARTBEAT (keeps teacher count accurate in admin dashboard) ----
+  const _clientId = Math.random().toString(36).slice(2) + Date.now().toString(36);
+
+  function sendHeartbeat() {
+    fetch('/sos/heartbeat', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({id: _clientId})
+    }).catch(() => {});
+  }
+
+  sendHeartbeat();
+  setInterval(sendHeartbeat, 20000);
+
+  window.addEventListener('beforeunload', () => {
+    navigator.sendBeacon('/sos/offline', JSON.stringify({id: _clientId}));
+  });
+
   // ---- SSE CONNECTION ----
   let evtSource;
 
