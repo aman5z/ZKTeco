@@ -17,14 +17,14 @@ function renderCounters(){
       <div class="counter-name">${esc(c.name)}</div>
       <div><span class="counter-prefix">${esc(c.prefix||'')}</span><span class="counter-value">${c.value}</span></div>
       <div class="counter-actions">
-        ${canManage?`<button class="btn btn-secondary btn-sm" onclick="counterAction('prev','${c.id}')">◀ Prev</button>`:''}
-        <button class="btn btn-primary btn-sm" onclick="counterAction('next','${c.id}')">▶ Next</button>
-        <button class="btn btn-secondary btn-sm" onclick="counterAction('repeat','${c.id}')">↻ Repeat</button>
-        ${canManage?`<button class="btn btn-danger btn-sm" onclick="counterAction('reset','${c.id}')">⟳ Reset</button>`:''}
+        ${canManage?`<button class="btn btn-secondary btn-sm" onclick="counterAction('prev','${esc(c.id)}')">◀ Prev</button>`:''}
+        <button class="btn btn-primary btn-sm" onclick="counterAction('next','${esc(c.id)}')">▶ Next</button>
+        <button class="btn btn-secondary btn-sm" onclick="counterAction('repeat','${esc(c.id)}')">↻ Repeat</button>
+        ${canManage?`<button class="btn btn-danger btn-sm" onclick="counterAction('reset','${esc(c.id)}')">⟳ Reset</button>`:''}
       </div>
       ${canManage?`<div class="counter-mgmt">
-        <button class="btn btn-secondary btn-sm" onclick="openRenameCounterMain('${c.id}','${esc(c.name)}')">✏️ Rename</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteCounter('${c.id}')">🗑️ Delete</button>
+        <button class="btn btn-secondary btn-sm" onclick="openRenameCounterMain('${esc(c.id)}','${esc(c.name)}')">✏️ Rename</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteCounter('${esc(c.id)}')">🗑️ Delete</button>
       </div>`:''}
     </div>
   `).join('')||'<div class="empty-state"><div class="icon">🎟</div><p>No counters configured</p></div>';

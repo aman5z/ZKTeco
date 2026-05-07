@@ -353,6 +353,11 @@ function toggleTheme(){
 
 /* ── JSONP ── */
 function jsonp(params, callback){
+  if(!API) return;
+  // Validate API URL before using as script src to prevent DOM XSS
+  let apiUrl;
+  try { apiUrl = new URL(API); } catch(e) { console.warn('Token display: invalid GAS URL'); return; }
+  if(apiUrl.protocol !== 'https:' && apiUrl.protocol !== 'http:') { console.warn('Token display: GAS URL must be http(s)'); return; }
   const cbName = "_cb" + (++cbCount);
   window[cbName] = function(data){
     delete window[cbName];
@@ -364,7 +369,8 @@ function jsonp(params, callback){
   const qs = Object.entries(params).map(([k,v])=>encodeURIComponent(k)+"="+encodeURIComponent(v)).join("&");
   const s = document.createElement("script");
   s.id = cbName;
-  s.src = API + "?" + qs;
+  // Use validated origin+pathname to prevent injection via stored URL
+  s.src = apiUrl.origin + apiUrl.pathname + "?" + qs;
   // Timeout: if the script doesn't call back within 10s, clean up
   const timeout = setTimeout(function(){
     if(window[cbName]){ delete window[cbName]; }
