@@ -491,6 +491,9 @@
   function stopAlarm() { stopSiren(); }
 
   // ---- HEARTBEAT (keeps teacher count accurate in admin dashboard) ----
+  // Server considers a teacher "active" for 45 s (_SOS_ACTIVE_THRESHOLD) after the
+  // last heartbeat, so this interval must be well below that threshold.
+  const HEARTBEAT_INTERVAL = 20000; // ms — server active window is 45 s
   const _clientId = Math.random().toString(36).slice(2) + Date.now().toString(36);
 
   function sendHeartbeat() {
@@ -502,7 +505,7 @@
   }
 
   sendHeartbeat();
-  setInterval(sendHeartbeat, 20000);
+  setInterval(sendHeartbeat, HEARTBEAT_INTERVAL);
 
   window.addEventListener('beforeunload', () => {
     navigator.sendBeacon('/sos/offline', new Blob([JSON.stringify({id: _clientId})], {type: 'application/json'}));
