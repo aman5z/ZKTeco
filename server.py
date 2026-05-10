@@ -2511,9 +2511,10 @@ def _norm_badge(b: str) -> str:
     """Canonical badge form: strip leading zeros from purely-numeric badges.
     Used to reconcile device UIDs with CSV badge numbers that may differ only
     in leading zeros (e.g. device stores '5', CSV has '005').
+    Non-numeric badges (e.g. 'A123') and empty strings are returned as-is.
     """
     b = str(b).strip()
-    if b.isdigit():
+    if b and b.isdigit():
         return str(int(b))
     return b
 
