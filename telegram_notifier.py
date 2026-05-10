@@ -1394,7 +1394,7 @@ class TelegramBotHandler:
         Single day  → punch-by-punch list.
         ≤14 days    → per-day detail (IN / OUT, weekends).
         >14 days    → weekly summary table.
-        Weekend detection uses Mon–Fri as working days (weekday 0–4).
+        Weekend detection uses Sun–Thu as working days (Fri=4, Sat=5 are off).
         """
         badge = emp.get("badge", "?")
         name  = emp.get("name",  "?")
@@ -1427,8 +1427,9 @@ class TelegramBotHandler:
             return "\n".join(lines)
 
         # ---- Multi-day -------------------------------------------------
-        # Weekday index at which the weekend starts (Saturday = 5)
-        _WEEKEND_START = 5
+        # Weekday index at which the weekend starts.
+        # This org runs Sun–Thu, so the weekend is Fri (4) + Sat (5).
+        _WEEKEND_START = 4
         num_days = (date_to - date_from).days + 1
         lines.append("📅 <b>{0} – {1}</b>  ({2} days)".format(
             date_from.strftime("%d %b %Y"),
@@ -1474,8 +1475,9 @@ class TelegramBotHandler:
                 d += timedelta(days=1)
 
         else:
-            # Weekly summary view
-            week_start = date_from - timedelta(days=date_from.weekday())
+            # Weekly summary view — week starts on Sunday for this Sun–Thu org.
+            # (date_from.weekday()+1)%7 gives days elapsed since the most recent Sunday.
+            week_start = date_from - timedelta(days=(date_from.weekday() + 1) % 7)
             while week_start <= date_to:
                 week_end   = week_start + timedelta(days=6)
                 w_p = w_a = w_w = 0
