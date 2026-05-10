@@ -1141,7 +1141,11 @@ def _bot_get_month_dept_summary() -> list:
     """Return per-department attendance rate for the current month up to today."""
     today       = date.today()
     month_start = today.replace(day=1)
-    working_days = (today - month_start).days + 1
+    # Count working days (Mon-Thu = weekday 0-3, Sun = 6) — exclude Fri(4) and Sat(5)
+    working_days = sum(
+        1 for i in range((today - month_start).days + 1)
+        if (month_start + timedelta(days=i)).weekday() not in (4, 5)
+    )
     start_ts    = month_start.strftime("%Y-%m-%d") + " 00:00:00"
     end_ts      = today.strftime("%Y-%m-%d")        + " 23:59:59"
     conn = get_db()
@@ -1188,7 +1192,11 @@ def _bot_get_top_absent(n: int = 10) -> list:
     """Return the top N employees with most absent days this month."""
     today        = date.today()
     month_start  = today.replace(day=1)
-    working_days = (today - month_start).days + 1
+    # Count working days (Mon-Thu=0-3, Sun=6) — exclude Fri(4) and Sat(5)
+    working_days = sum(
+        1 for i in range((today - month_start).days + 1)
+        if (month_start + timedelta(days=i)).weekday() not in (4, 5)
+    )
     start_ts     = month_start.strftime("%Y-%m-%d") + " 00:00:00"
     end_ts       = today.strftime("%Y-%m-%d")        + " 23:59:59"
     conn = get_db()

@@ -1292,9 +1292,14 @@ class TelegramBotHandler:
             self._state.pop(chat_id, None)
             d_from_str = range_from
             d_to_str   = selected_date
-            # Ensure from <= to
-            if d_from_str > d_to_str:
-                d_from_str, d_to_str = d_to_str, d_from_str
+            # Ensure from <= to using datetime comparison (robust regardless of format)
+            try:
+                d_from_dt = datetime.strptime(d_from_str, "%Y-%m-%d")
+                d_to_dt   = datetime.strptime(d_to_str,   "%Y-%m-%d")
+                if d_from_dt > d_to_dt:
+                    d_from_str, d_to_str = d_to_str, d_from_str
+            except ValueError:
+                pass
             self._edit_message_text(chat_id, message_id,
                 "⏳ Fetching attendance for {name} — {df} to {dt}…".format(
                     name=name, df=d_from_str, dt=d_to_str))
