@@ -33,7 +33,6 @@ from datetime import datetime, date, timedelta
 import calendar
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import wraps
-from typing import Optional
 warnings.filterwarnings("ignore")
 
 
@@ -1014,248 +1013,6 @@ def _bot_get_employee_punches_today(query: str) -> str:
     return "\n".join(lines)
 
 
-def _bot_find_employee(query: str) -> Optional[dict]:
-    """Find employee by name or badge; return {badge, name, dept} or None."""
-    q    = query.strip().lower()
-    emps = get_employees(active_only=False)
-    for emp in emps:
-        badge = str(emp.get("badge", "")).strip()
-        name  = str(emp.get("name",  "")).strip()
-        if q == badge.lower() or q in name.lower():
-            return {"badge": badge, "name": name, "dept": emp.get("dept", "")}
-    return None
-
-
-def _bot_get_punch_records(badge: str, date_from, date_to) -> list:
-    """Return punch records for employee in a date range."""
-    try:
-        return get_punch_records_for_employee(badge, date_from, date_to)
-    except Exception:
-        return []
-
-
-def _bot_get_late_today() -> list:
-    """Return employees who arrived later than their shift start + grace today."""
-    today  = date.today()
-    shifts = get_shift_times()
-    emps   = get_employees(active_only=True)
-    result = []
-    for emp in emps:
-        badge     = emp["badge"]
-        dept_key  = (emp.get("dept") or "").upper()
-        records   = get_punch_records_for_employee(badge, today, today)
-        if not records:
-            continue
-        first_punch_str = records[0]["punch_time"]
-        try:
-            first_punch = datetime.strptime(first_punch_str, "%Y-%m-%d %H:%M:%S")
-        except Exception:
-            continue
-        shift = shifts.get(dept_key, {})
-        shift_start_str = shift.get("start", "07:30")
-        grace           = int(shift.get("grace", 15))
-        try:
-            sh, sm = [int(x) for x in shift_start_str.split(":")]
-        except Exception:
-            sh, sm = 7, 30
-        latest_ok = (
-            first_punch.replace(hour=sh, minute=sm, second=0, microsecond=0)
-            + timedelta(minutes=grace)
-        )
-        if first_punch > latest_ok:
-            mins_late = int((first_punch - latest_ok).total_seconds() / 60)
-            result.append({
-                "badge":       badge,
-                "name":        emp["name"],
-                "dept":        emp.get("dept", ""),
-                "first_punch": first_punch.strftime("%I:%M %p"),
-                "shift_start": shift_start_str,
-                "mins_late":   mins_late,
-            })
-    result.sort(key=lambda x: -x["mins_late"])
-    return result
-
-
-def _bot_get_early_exits() -> list:
-    """Return employees whose last punch today was before their shift end."""
-    today  = date.today()
-    shifts = get_shift_times()
-    emps   = get_employees(active_only=True)
-    result = []
-    for emp in emps:
-        badge    = emp["badge"]
-        dept_key = (emp.get("dept") or "").upper()
-        records  = get_punch_records_for_employee(badge, today, today)
-        if not records:
-            continue
-        last_punch_str = records[-1]["punch_time"]
-        try:
-            last_punch = datetime.strptime(last_punch_str, "%Y-%m-%d %H:%M:%S")
-        except Exception:
-            continue
-        shift         = shifts.get(dept_key, {})
-        shift_end_str = shift.get("end", "15:00")
-        try:
-            eh, em = [int(x) for x in shift_end_str.split(":")]
-        except Exception:
-            eh, em = 15, 0
-        shift_end = datetime(today.year, today.month, today.day, eh, em, 0)
-        if last_punch < shift_end:
-            mins_early = int((shift_end - last_punch).total_seconds() / 60)
-            result.append({
-                "badge":      badge,
-                "name":       emp["name"],
-                "dept":       emp.get("dept", ""),
-                "last_punch": last_punch.strftime("%I:%M %p"),
-                "shift_end":  shift_end_str,
-                "mins_early": mins_early,
-            })
-    result.sort(key=lambda x: -x["mins_early"])
-    return result
-
-
-def _bot_get_who_is_in() -> list:
-    """Return employees currently in office (odd punch count today = still checked in)."""
-    today     = date.today()
-    start     = today.strftime("%Y-%m-%d") + " 00:00:00"
-    end       = today.strftime("%Y-%m-%d") + " 23:59:59"
-    emps_map  = {e["badge"]: e for e in get_employees(active_only=True)}
-    conn      = get_db()
-    rows      = conn.execute(
-        "SELECT badge, COUNT(*) as cnt, MIN(punch_time) as first_punch "
-        "FROM punches WHERE punch_time >= ? AND punch_time <= ? GROUP BY badge",
-        (start, end),
-    ).fetchall()
-    conn.close()
-    result = []
-    for r in rows:
-        badge = r["badge"]
-        cnt   = r["cnt"]
-        if cnt % 2 == 1:  # odd punch count → still in
-            emp = emps_map.get(badge, {})
-            fp_str = r["first_punch"]
-            try:
-                fp = datetime.strptime(fp_str, "%Y-%m-%d %H:%M:%S").strftime("%I:%M %p")
-            except Exception:
-                fp = (fp_str or "")[:16]
-            result.append({
-                "badge":       badge,
-                "name":        emp.get("name", "Unknown ({0})".format(badge)),
-                "dept":        emp.get("dept", ""),
-                "first_punch": fp,
-                "punch_count": cnt,
-            })
-    result.sort(key=lambda x: x.get("name", ""))
-    return result
-
-
-def _bot_get_punch_feed() -> list:
-    """Return the last 10 punch records with employee names."""
-    conn = get_db()
-    rows = conn.execute(
-        "SELECT p.badge, p.punch_time, p.device_ip, e.name, e.dept "
-        "FROM punches p LEFT JOIN employees e ON p.badge=e.badge "
-        "ORDER BY p.punch_time DESC LIMIT 10"
-    ).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
-
-
-def _bot_get_week_summary() -> list:
-    """Return {date, weekday, present, absent, total} for each day Sun–today this week."""
-    today      = date.today()
-    # Week starts on Sunday for this Sun–Thu organisation.
-    # (today.weekday()+1)%7 gives days elapsed since the most recent Sunday:
-    #   Sunday=0, Monday=1, ..., Saturday=6
-    days_since_sunday = (today.weekday() + 1) % 7
-    week_start = today - timedelta(days=days_since_sunday)
-    total_emps = len(get_employees(active_only=True))
-    result     = []
-    d = week_start
-    while d <= today:
-        punched = get_punches_for_day(d)
-        present = len(punched)
-        result.append({
-            "date":    d.strftime("%Y-%m-%d"),
-            "weekday": d.strftime("%a"),
-            "present": present,
-            "absent":  max(0, total_emps - present),
-            "total":   total_emps,
-        })
-        d += timedelta(days=1)
-    return result
-
-
-def _bot_get_month_summary() -> dict:
-    """Return per-dept attendance rate (%) for working days this month so far."""
-    today       = date.today()
-    month_start = today.replace(day=1)
-    working_days = []
-    d = month_start
-    while d <= today:
-        if _is_working_day(d, '', ''):
-            working_days.append(d)
-        d += timedelta(days=1)
-    if not working_days:
-        return {}
-    emps     = get_employees(active_only=True)
-    dept_map: dict = {}
-    for emp in emps:
-        dept = emp.get("dept") or "Other"
-        dept_map.setdefault(dept, []).append(emp["badge"])
-    result = {}
-    for dept, badges in dept_map.items():
-        total_possible = len(badges) * len(working_days)
-        present_days   = 0
-        for wd in working_days:
-            punched      = get_punches_for_day(wd)
-            present_days += sum(1 for b in badges if b in punched)
-        pct = round(100 * present_days / total_possible) if total_possible else 0
-        result[dept] = {
-            "present_days":   present_days,
-            "total_possible": total_possible,
-            "attendance_pct": pct,
-            "employees":      len(badges),
-        }
-    return result
-
-
-def _bot_get_top_absent() -> list:
-    """Return up to 10 employees with the most absent working days this month."""
-    today       = date.today()
-    month_start = today.replace(day=1)
-    # Collect all calendar days from month start to today (punch lookup is per day)
-    all_days = []
-    d = month_start
-    while d <= today:
-        all_days.append(d)
-        d += timedelta(days=1)
-    if not all_days:
-        return []
-    emps          = get_employees(active_only=True)
-    daily_punched = {day: get_punches_for_day(day) for day in all_days}
-    result = []
-    for emp in emps:
-        badge = emp["badge"]
-        dept  = emp.get("dept", "")
-        # Use per-employee working days so departments with different schedules
-        # (e.g. TEACHING works Mon–Thu, not Sun) are counted correctly.
-        emp_working_days = [day for day in all_days if _is_working_day(day, badge, dept)]
-        if not emp_working_days:
-            continue
-        absent_days = sum(1 for wd in emp_working_days if badge not in daily_punched[wd])
-        if absent_days > 0:
-            result.append({
-                "badge":        badge,
-                "name":         emp["name"],
-                "dept":         dept,
-                "absent_days":  absent_days,
-                "working_days": len(emp_working_days),
-            })
-    result.sort(key=lambda x: -x["absent_days"])
-    return result[:10]
-
-
 def _init_telegram():
     """Instantiate TelegramNotifier and TelegramBotHandler from settings.ini / DB overrides."""
     global _tg_notifier, _tg_bot_handler, _tg_init_error
@@ -1309,16 +1066,6 @@ def _init_telegram():
             get_pending_punches_fn=_bot_get_pending_punches,
             cache_refresh_fn=_bot_trigger_cache_refresh,
             get_employee_punches_fn=_bot_get_employee_punches_today,
-            # Extended callbacks
-            find_employee_fn=_bot_find_employee,
-            get_punch_records_fn=_bot_get_punch_records,
-            get_late_today_fn=_bot_get_late_today,
-            get_early_exits_fn=_bot_get_early_exits,
-            get_who_is_in_fn=_bot_get_who_is_in,
-            get_punch_feed_fn=_bot_get_punch_feed,
-            get_week_summary_fn=_bot_get_week_summary,
-            get_month_summary_fn=_bot_get_month_summary,
-            get_top_absent_fn=_bot_get_top_absent,
         )
         _tg_bot_handler.start()
         _tg_init_error = None
@@ -2507,17 +2254,6 @@ def _dept_sort(dept):
     try:    return DEPT_ORDER.index(dept.upper())
     except: return len(DEPT_ORDER)
 
-def _norm_badge(b: str) -> str:
-    """Canonical badge form: strip leading zeros from purely-numeric badges.
-    Used to reconcile device UIDs with CSV badge numbers that may differ only
-    in leading zeros (e.g. device stores '5', CSV has '005').
-    Non-numeric badges (e.g. 'A123') and empty strings are returned as-is.
-    """
-    b = str(b).strip()
-    if b and b.isdigit():
-        return str(int(b))
-    return b
-
 # ==============================================================================
 #  DEVICE PULL
 # ==============================================================================
@@ -2721,9 +2457,6 @@ def _refresh_cache():
     # _uid_to_badge_cache maps uid_str -> badge_str.
     # Also keep raw UIDs as fallback (some devices store badge number as UID).
     _emp_badges_set = _emp_cache_for_db()
-    # Build a normalised version of the known badge set so we can match across
-    # leading-zero differences (e.g. device stores "5", CSV has "005").
-    _emp_badges_norm = {_norm_badge(b) for b in _emp_badges_set}
     present_badges_resolved = set()
     for uid in present_badges:
         # ZKTeco devices normally enroll users with their badge/employee number as
@@ -2733,7 +2466,7 @@ def _refresh_cache():
         # so an MDB-derived UID→badge mapping from one device can be wrong for
         # another device.  Only fall back to the MDB map when the raw UID is not
         # itself a recognisable employee badge.
-        if uid in _emp_badges_set or _norm_badge(uid) in _emp_badges_norm:
+        if uid in _emp_badges_set:
             present_badges_resolved.add(uid)
         else:
             mapped = _uid_to_badge_cache.get(uid, "")
@@ -2741,8 +2474,8 @@ def _refresh_cache():
     # Supplement with badges already stored in the SQLite punches table for today.
     # This covers employees whose device UIDs did not match their badge at pull time
     # but whose data was correctly stored in a previous sync cycle.
-    # Accept a stored badge if it matches a known employee badge exactly OR after
-    # normalising leading zeros (device may store "5" while CSV has "005").
+    # Only add badges that belong to known employees to prevent phantom/wrong UIDs
+    # (e.g., from UID collisions across devices) from showing as present.
     try:
         today_str = today.strftime("%Y-%m-%d")
         db_sup = get_db()
@@ -2753,21 +2486,13 @@ def _refresh_cache():
         db_sup.close()
         for r in sup_rows:
             b = str(r["badge"]).strip()
-            if not b:
-                continue
-            # Admit when the emp set is empty (file unavailable — add all to avoid
-            # hiding everyone), or when the badge matches exactly or after normalisation.
-            if (not _emp_badges_set
-                    or b in _emp_badges_set
-                    or _norm_badge(b) in _emp_badges_norm):
+            # Only add if it is a recognised employee badge (or emp set is empty which
+            # means we could not load the file — in that case add unconditionally so we
+            # don't accidentally hide everyone).
+            if b and (not _emp_badges_set or b in _emp_badges_set):
                 present_badges_resolved.add(b)
     except Exception as e:
         print("[Cache] DB punch supplement error: {0}".format(e)); sys.stdout.flush()
-
-    # Build a normalised lookup for the final present/absent split so that a
-    # badge stored as "5" is recognised as present for an employee whose CSV
-    # Badgenumber is "005" (or vice-versa).
-    present_badges_norm = {_norm_badge(b) for b in present_badges_resolved}
 
     absent, present, off_today = [], [], []
     for _, emp in emp_df.iterrows():
@@ -2775,7 +2500,7 @@ def _refresh_cache():
         rec = {"name": emp["Name"], "code": badge, "dept": dept}
         if not _is_working_day(today, badge, dept):
             off_today.append(rec)
-        elif badge in present_badges_resolved or _norm_badge(badge) in present_badges_norm:
+        elif badge in present_badges_resolved:
             present.append(rec)
         else:
             absent.append(rec)
@@ -3245,22 +2970,12 @@ def today_report():
             ).fetchall()
             db_sup.close()
             latest_badges = {str(r["badge"]).strip() for r in sup_rows if r["badge"]}
-            latest_badges_norm = {_norm_badge(b) for b in latest_badges}
-            # Move any employee in absent whose badge now appears in SQLite to present.
-            # Check both the exact stored badge and its normalised form so that leading-
-            # zero differences (device stores "5", CSV has "005") are bridged.
+            # Move any employee in absent whose badge now appears in SQLite to present
             cached_present_codes = {e["code"] for e in (data.get("present") or [])}
-            newly_present = [
-                e for e in (data.get("absent") or [])
-                if (e["code"] in latest_badges or _norm_badge(e["code"]) in latest_badges_norm)
-                and e["code"] not in cached_present_codes
-            ]
+            newly_present = [e for e in (data.get("absent") or []) if e["code"] in latest_badges and e["code"] not in cached_present_codes]
             if newly_present:
                 updated_present = list(data.get("present") or []) + newly_present
-                updated_absent  = [
-                    e for e in (data.get("absent") or [])
-                    if e["code"] not in latest_badges and _norm_badge(e["code"]) not in latest_badges_norm
-                ]
+                updated_absent  = [e for e in (data.get("absent") or []) if e["code"] not in latest_badges]
                 updated_present.sort(key=lambda x: (_dept_sort(x["dept"]), x["name"]))
                 updated_absent.sort(key=lambda x:  (_dept_sort(x["dept"]), x["name"]))
                 data["present"]       = updated_present
