@@ -10,7 +10,7 @@ gaes_telegram_bot_token=8744699402:AAGaLz0HWIBKYHzWBfr_qr6U3BrUe7lJ2A4
 gaes_telegram_chat_id=-1003063465563
 
 # ── Sync Endpoint (gaes-py-zk) ────────────────────────
-gaes_sync_endpoint=https://gaes.paceeducation.com/erp-api/sync/empAttSync.php
+http://localhost/fake
 
 # ── VoIP / TURN ───────────────────────────────────────
 voip_turn_url=turn:192.46.213.218:3478
