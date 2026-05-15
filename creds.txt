@@ -1,0 +1,27 @@
+# ── Admin ──────────────────────────────────────────────
+default_admin_password=Gaesous180
+
+# ── Telegram (server.py / main.py) ────────────────────
+telegram_bot_token=8426829392:AAFf4amEMA8SdIxT0psH-BYRbFzBOztYvtY
+telegram_chat_id=
+
+# ── Telegram (gaes-py-zk sync scripts) ────────────────
+gaes_telegram_bot_token=8744699402:AAGaLz0HWIBKYHzWBfr_qr6U3BrUe7lJ2A4
+gaes_telegram_chat_id=-1003063465563
+
+# ── Sync Endpoint (gaes-py-zk) ────────────────────────
+gaes_sync_endpoint=https://gaes.paceeducation.com/erp-api/sync/empAttSync.php
+
+# ── VoIP / TURN ───────────────────────────────────────
+voip_turn_url=turn:192.46.213.218:3478
+voip_turn_user=zkteco
+voip_turn_cred=changeme123
+
+# ── Email / GAS (fill these in if used) ───────────────
+gas_url=
+gas_mail=amanfaizal04@gmail.com
+gas_pass=
+email_smtp_host=
+email_smtp_port=
+email_sender=
+email_app_password=
